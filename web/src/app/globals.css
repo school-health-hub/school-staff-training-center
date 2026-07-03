@@ -239,6 +239,18 @@ p {
   font-weight: 800;
 }
 
+.soft-alert.success {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.soft-alert.danger {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #991b1b;
+}
+
 .today-card,
 .feature-card,
 .admin-section,
@@ -336,13 +348,12 @@ p {
   font-weight: 900;
 }
 
-.field-group input {
+.field-group input,
+.field-group textarea {
   width: 100%;
-  min-height: 48px;
   border: 1px solid rgba(226, 232, 240, 0.95);
   border-radius: 16px;
   background: #ffffff;
-  padding: 0 14px;
   color: var(--navy);
   font: inherit;
   font-size: 14px;
@@ -350,9 +361,29 @@ p {
   outline: none;
 }
 
-.field-group input:focus {
+.field-group input {
+  min-height: 48px;
+  padding: 0 14px;
+}
+
+.field-group textarea {
+  min-height: 132px;
+  padding: 14px;
+  line-height: 1.55;
+  resize: vertical;
+}
+
+.field-group input:focus,
+.field-group textarea:focus {
   border-color: rgba(79, 70, 229, 0.45);
   box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.08);
+}
+
+.field-help {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1.45;
 }
 
 .signature-canvas {
@@ -1009,6 +1040,22 @@ p {
   color: var(--muted);
   font-size: 12px;
   font-weight: 850;
+}
+
+.settings-form {
+  display: grid;
+  gap: 18px;
+}
+
+.settings-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.settings-actions {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .admin-grid {

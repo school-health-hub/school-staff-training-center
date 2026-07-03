@@ -187,6 +187,12 @@ const adminItems = [
     description: "교육별 최종 서명부를 다운로드합니다.",
     href: "/admin/final-sheet",
     icon: "file" as IconName
+  },
+  {
+    title: "설정 관리",
+    description: "학교 기본정보, 브랜드, 저장 폴더 설정을 관리합니다.",
+    href: "/admin/settings",
+    icon: "admin" as IconName
   }
 ];
 

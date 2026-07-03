@@ -35,7 +35,9 @@ const CONFIG_KEYS = {
   SIGNATURE_FOLDER_ID: "전자서명 저장 폴더 ID",
   FINAL_ROSTER_FOLDER_ID: "최종 서명부 저장 폴더 ID",
   CERTIFICATE_FOLDER_ID: "이수증 저장 폴더 ID",
-  PRIVACY_NOTICE: "개인정보 안내문"
+  PRIVACY_NOTICE: "개인정보 안내문",
+  ADMIN_CODE: "관리자코드",
+  ACTIVE_SEMESTER: "운영학기"
 };
 
 const TRAINING_COLUMNS = {
@@ -145,6 +147,7 @@ const ACTIONS = {
   GET_FINAL_ATTENDANCE_PREVIEW: "getFinalAttendancePreview",
   GENERATE_FINAL_ATTENDANCE_SHEET: "generateFinalAttendanceSheet",
   VALIDATE_SETUP: "validateSetup",
+  UPDATE_SCHOOL_CONFIG: "updateSchoolConfig",
   GET_ADMIN_DASHBOARD_DATA: "getAdminDashboardData"
 };
 
@@ -240,6 +243,8 @@ function doPost(e) {
         return generateFinalAttendanceSheet(payload);
       case ACTIONS.VALIDATE_SETUP:
         return validateSetup();
+      case ACTIONS.UPDATE_SCHOOL_CONFIG:
+        return updateSchoolConfig(payload);
       case ACTIONS.GET_ADMIN_DASHBOARD_DATA:
         return getAdminDashboardData();
       default:
@@ -260,28 +265,113 @@ function doPost(e) {
  * TODO: Decide whether manager contact should be returned to all users or admin only.
  */
 function getSchoolConfig() {
-  const rows = readRows(SHEET_NAMES.CONFIG);
-  const config = {};
-
-  rows.forEach(function (row) {
-    const key = row["설정키"] || row["항목"] || row["key"];
-    const value = row["설정값"] || row["값"] || row["value"] || "";
-    if (key) {
-      config[key] = value;
-    }
-  });
+  const config = getConfigMap_();
 
   return jsonResponse({
     schoolName: config[CONFIG_KEYS.SCHOOL_NAME] || "",
     centerName: config[CONFIG_KEYS.CENTER_NAME] || "학교 교직원 교육센터",
+    logoUrl: config[CONFIG_KEYS.SCHOOL_LOGO_URL] || "",
     schoolLogoUrl: config[CONFIG_KEYS.SCHOOL_LOGO_URL] || "",
     primaryColor: config[CONFIG_KEYS.PRIMARY_COLOR] || "#1F2A44",
     secondaryColor: config[CONFIG_KEYS.SECONDARY_COLOR] || "#EEF4FF",
+    ownerDepartment: config[CONFIG_KEYS.DEPARTMENT_NAME] || "",
+    ownerName: config[CONFIG_KEYS.MANAGER_NAME] || "",
+    ownerContact: config[CONFIG_KEYS.MANAGER_CONTACT] || "",
     departmentName: config[CONFIG_KEYS.DEPARTMENT_NAME] || "",
     managerName: config[CONFIG_KEYS.MANAGER_NAME] || "",
     managerContact: config[CONFIG_KEYS.MANAGER_CONTACT] || "",
+    signatureFolderId: config[CONFIG_KEYS.SIGNATURE_FOLDER_ID] || config.signatureFolderId || "",
+    certificateFolderId: config[CONFIG_KEYS.CERTIFICATE_FOLDER_ID] || config.certificateFolderId || "",
+    finalRosterFolderId: config[CONFIG_KEYS.FINAL_ROSTER_FOLDER_ID] || config.finalRosterFolderId || "",
+    adminCode: config[CONFIG_KEYS.ADMIN_CODE] || config.adminCode || "",
+    activeSemester: config[CONFIG_KEYS.ACTIVE_SEMESTER] || config.activeSemester || "",
     privacyNotice: config[CONFIG_KEYS.PRIVACY_NOTICE] || ""
   });
+}
+
+/**
+ * Update allowed school configuration keys in 00_학교설정.
+ *
+ * Input: payload with editable setting fields
+ * Output: updated school configuration
+ */
+function updateSchoolConfig(payload) {
+  const updates = payload && payload.settings ? payload.settings : payload || {};
+  const keyMap = {
+    schoolName: CONFIG_KEYS.SCHOOL_NAME,
+    centerName: CONFIG_KEYS.CENTER_NAME,
+    logoUrl: CONFIG_KEYS.SCHOOL_LOGO_URL,
+    schoolLogoUrl: CONFIG_KEYS.SCHOOL_LOGO_URL,
+    primaryColor: CONFIG_KEYS.PRIMARY_COLOR,
+    secondaryColor: CONFIG_KEYS.SECONDARY_COLOR,
+    ownerDepartment: CONFIG_KEYS.DEPARTMENT_NAME,
+    departmentName: CONFIG_KEYS.DEPARTMENT_NAME,
+    ownerName: CONFIG_KEYS.MANAGER_NAME,
+    managerName: CONFIG_KEYS.MANAGER_NAME,
+    ownerContact: CONFIG_KEYS.MANAGER_CONTACT,
+    managerContact: CONFIG_KEYS.MANAGER_CONTACT,
+    signatureFolderId: CONFIG_KEYS.SIGNATURE_FOLDER_ID,
+    certificateFolderId: CONFIG_KEYS.CERTIFICATE_FOLDER_ID,
+    finalRosterFolderId: CONFIG_KEYS.FINAL_ROSTER_FOLDER_ID,
+    privacyNotice: CONFIG_KEYS.PRIVACY_NOTICE,
+    adminCode: CONFIG_KEYS.ADMIN_CODE,
+    activeSemester: CONFIG_KEYS.ACTIVE_SEMESTER
+  };
+  const rowsToWrite = [];
+
+  Object.keys(keyMap).forEach(function (field) {
+    if (updates[field] !== undefined) {
+      rowsToWrite.push({
+        key: keyMap[field],
+        value: String(updates[field] || "").trim()
+      });
+    }
+  });
+
+  if (!rowsToWrite.length) {
+    return errorResponse("저장할 설정값이 없습니다.", "NO_CONFIG_UPDATES");
+  }
+
+  const sheet = getSheetByName(SHEET_NAMES.CONFIG);
+  const values = sheet.getDataRange().getValues();
+  const headerRowIndex = findHeaderRowIndex_(values, getRequiredHeadersForSheet_(SHEET_NAMES.CONFIG));
+  const headers = values[headerRowIndex] || [];
+  const keyColumnIndex = findFirstHeaderIndex_(headers, ["설정키", "항목", "key", "Key"]);
+  const valueColumnIndex = findFirstHeaderIndex_(headers, ["설정값", "값", "value", "Value"]);
+
+  if (keyColumnIndex === -1 || valueColumnIndex === -1) {
+    return errorResponse("00_학교설정 탭의 설정키/설정값 헤더를 확인해주세요.", "CONFIG_HEADERS_NOT_FOUND");
+  }
+
+  const rowIndexByKey = {};
+  for (let rowIndex = headerRowIndex + 1; rowIndex < values.length; rowIndex += 1) {
+    const key = String(values[rowIndex][keyColumnIndex] || "").trim();
+    if (key) {
+      rowIndexByKey[key] = rowIndex + 1;
+    }
+  }
+
+  rowsToWrite.forEach(function (item) {
+    if (rowIndexByKey[item.key]) {
+      sheet.getRange(rowIndexByKey[item.key], valueColumnIndex + 1).setValue(item.value);
+      return;
+    }
+
+    const newRow = headers.map(function (header, index) {
+      if (index === keyColumnIndex) {
+        return item.key;
+      }
+
+      if (index === valueColumnIndex) {
+        return item.value;
+      }
+
+      return "";
+    });
+    sheet.appendRow(newRow);
+  });
+
+  return getSchoolConfig();
 }
 
 /**
@@ -1243,6 +1333,21 @@ function findHeaderRowIndex_(values, requiredHeaders) {
   }
 
   return 0;
+}
+
+function findFirstHeaderIndex_(headers, candidates) {
+  const normalizedHeaders = headers.map(function (header) {
+    return String(header || "").trim();
+  });
+
+  for (let index = 0; index < candidates.length; index += 1) {
+    const candidateIndex = normalizedHeaders.indexOf(candidates[index]);
+    if (candidateIndex !== -1) {
+      return candidateIndex;
+    }
+  }
+
+  return -1;
 }
 
 function isTruthy(value) {

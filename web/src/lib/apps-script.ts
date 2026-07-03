@@ -40,7 +40,8 @@ export type AppsScriptAction =
   | "getTrainingAttendanceStatus"
   | "getFinalAttendancePreview"
   | "generateFinalAttendanceSheet"
-  | "validateSetup";
+  | "validateSetup"
+  | "updateSchoolConfig";
 
 export type RuntimeConfigResult =
   | {
@@ -100,22 +101,24 @@ function schoolConfigFromAppConfig(config: Partial<AppConfig>): SchoolConfig {
 }
 
 function schoolConfigOverridesFromAppConfig(config: AppConfig): Partial<SchoolConfig> {
-  const themeColors = themeToColors(config.theme);
-  const overrides: Partial<SchoolConfig> = {
-    primaryColor: themeColors.primaryColor,
-    secondaryColor: themeColors.secondaryColor
-  };
+  const overrides: Partial<SchoolConfig> = {};
 
-  if (nonEmptyString(config.schoolName)) {
+  if (nonEmptyString(config.schoolName) && config.schoolName.trim() !== "학교명 미설정") {
     overrides.schoolName = config.schoolName.trim();
   }
 
-  if (nonEmptyString(config.centerName)) {
+  if (nonEmptyString(config.centerName) && config.centerName.trim() !== "학교 교직원 교육센터") {
     overrides.centerName = config.centerName.trim();
   }
 
   if (nonEmptyString(config.schoolLogo)) {
     overrides.schoolLogoUrl = config.schoolLogo.trim();
+  }
+
+  if (typeof config.theme === "object" && config.theme !== null) {
+    const themeColors = themeToColors(config.theme);
+    overrides.primaryColor = themeColors.primaryColor;
+    overrides.secondaryColor = themeColors.secondaryColor;
   }
 
   return overrides;
@@ -204,6 +207,20 @@ export async function getSchoolConfig(config: AppConfig): Promise<{ data: School
     return {
       data: schoolConfigFromAppConfig(config),
       error: error instanceof Error ? error.message : "학교설정을 불러오지 못했습니다."
+    };
+  }
+}
+
+export async function updateSchoolConfig(
+  config: AppConfig,
+  settings: Partial<SchoolConfig>
+): Promise<{ data?: SchoolConfig; error?: string }> {
+  try {
+    const data = await requestAppsScript<Partial<SchoolConfig>>(config, "updateSchoolConfig", { settings });
+    return { data: mergeSchoolConfig({ ...data, ...schoolConfigOverridesFromAppConfig(config) }) };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "학교설정을 저장하지 못했습니다."
     };
   }
 }

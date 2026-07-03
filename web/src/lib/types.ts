@@ -3,12 +3,21 @@ export type SchoolConfig = {
   centerName: string;
   schoolLogo?: string;
   schoolLogoUrl?: string;
+  logoUrl?: string;
   primaryColor: string;
   secondaryColor: string;
   departmentName?: string;
   managerName?: string;
   managerContact?: string;
+  ownerDepartment?: string;
+  ownerName?: string;
+  ownerContact?: string;
+  signatureFolderId?: string;
+  certificateFolderId?: string;
+  finalRosterFolderId?: string;
   privacyNotice?: string;
+  adminCode?: string;
+  activeSemester?: string;
 };
 
 export type AppConfig = {
