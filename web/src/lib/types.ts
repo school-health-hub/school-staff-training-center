@@ -1,6 +1,7 @@
 export type SchoolConfig = {
   schoolName: string;
   centerName: string;
+  schoolLogo?: string;
   schoolLogoUrl?: string;
   primaryColor: string;
   secondaryColor: string;
@@ -8,6 +9,19 @@ export type SchoolConfig = {
   managerName?: string;
   managerContact?: string;
   privacyNotice?: string;
+};
+
+export type AppConfig = {
+  schoolName: string;
+  centerName?: string;
+  schoolLogo?: string;
+  theme?:
+    | "default"
+    | {
+        primaryColor?: string;
+        secondaryColor?: string;
+      };
+  appsScriptUrl: string;
 };
 
 export type Training = {

@@ -1,6 +1,6 @@
 "use client";
 
-import { DEFAULT_CONFIG, getSchoolConfig, getTrainingList } from "@/lib/apps-script";
+import { DEFAULT_CONFIG, getSchoolConfig, getTrainingList, loadAppConfig } from "@/lib/apps-script";
 import type { SchoolConfig, Training } from "@/lib/types";
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 
@@ -208,13 +208,33 @@ function formatTrainingMeta(date?: string, time?: string, location?: string) {
 export default function HomePage() {
   const [config, setConfig] = useState<SchoolConfig>(DEFAULT_CONFIG);
   const [trainings, setTrainings] = useState<Training[]>([]);
-  const [notice, setNotice] = useState("Apps Script URL을 설정하면 학교설정과 교육목록을 불러옵니다.");
+  const [notice, setNotice] = useState("학교 설정을 불러오는 중입니다.");
+  const [setupMessage, setSetupMessage] = useState<string>();
 
   useEffect(() => {
     let ignore = false;
 
     async function loadHomeData() {
-      const [configResult, trainingResult] = await Promise.all([getSchoolConfig(), getTrainingList()]);
+      const runtimeConfig = await loadAppConfig();
+
+      if (ignore) {
+        return;
+      }
+
+      setConfig(runtimeConfig.schoolConfig);
+
+      if (!runtimeConfig.ok) {
+        setSetupMessage(runtimeConfig.message);
+        setNotice("");
+        return;
+      }
+
+      setSetupMessage(undefined);
+
+      const [configResult, trainingResult] = await Promise.all([
+        getSchoolConfig(runtimeConfig.config),
+        getTrainingList(runtimeConfig.config)
+      ]);
 
       if (ignore) {
         return;
@@ -290,6 +310,12 @@ export default function HomePage() {
             </button>
           ))}
         </nav>
+
+        {setupMessage ? (
+          <div className="soft-alert" role="alert">
+            {setupMessage} GitHub Pages 배포 파일에 app-config.json을 추가하면 학교별 설정을 빌드 없이 바꿀 수 있습니다.
+          </div>
+        ) : null}
 
         {notice ? (
           <div className="soft-alert" role="status">

@@ -22,8 +22,6 @@ jobs:
     defaults:
       run:
         working-directory: web
-    env:
-      NEXT_PUBLIC_BASE_PATH: /school-staff-training-center
     steps:
       - name: Checkout
         uses: actions/checkout@v4

@@ -4,63 +4,53 @@
 
 ## 배포 전 준비
 
-1. 학교별 Google Sheet 허브시트를 복사합니다.
-2. `00_학교설정`에 학교명, 로고, 색상, 담당부서, Drive 폴더 ID를 입력합니다.
+1. 학교별 Google Sheet 허브시트 템플릿을 복사합니다.
+2. 학교설정 탭에 학교명, 로고, 색상, 담당자 정보, Drive 폴더 ID를 입력합니다.
 3. Apps Script 프로젝트를 학교별 Sheet에 연결합니다.
 4. Apps Script를 Web App으로 배포합니다.
 5. 배포된 Apps Script Web App URL을 확인합니다.
 
-## GitHub Pages 정적 빌드
+## app-config.json 설정
+
+학교별 설정은 `.env.local`이 아니라 GitHub Pages에 함께 배포되는 `app-config.json`으로 관리합니다.
+
+```json
+{
+  "schoolName": "학교명 미설정",
+  "centerName": "학교 교직원 교육센터",
+  "schoolLogo": "",
+  "theme": "default",
+  "appsScriptUrl": "https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec"
+}
+```
+
+`web/public/app-config.example.json`은 예시 파일로 유지합니다. 실제 운영 설정은 `web/public/app-config.json`에 입력합니다.
+
+앱은 시작 시 `app-config.json`을 먼저 불러옵니다. 파일이 없거나 `appsScriptUrl`이 비어 있으면 Apps Script API를 호출하지 않고 안내 배너를 표시합니다.
+
+## 정적 빌드
 
 `web` 폴더에서 정적 파일을 생성합니다.
 
 ```bash
 cd web
+npm ci
+npm run lint
+npm run typecheck
 npm run build
 ```
 
-Next.js 설정은 `output: "export"`를 사용하므로 빌드 결과는 `web/out`에 생성됩니다.
+Next.js 설정은 `output: "export"`를 사용하므로 빌드 결과는 `web/out`에 생성됩니다. 이 저장소의 GitHub Pages 프로젝트 경로는 `/school-staff-training-center`로 설정되어 있으며, 별도 환경변수 없이 빌드됩니다.
 
-## Apps Script URL 설정
+`web/out`은 배포 산출물이므로 직접 수정하지 않습니다. 학교별 설정을 바꿀 때는 `web/public/app-config.json`을 수정한 뒤 다시 빌드합니다. 빌드 과정에서 `web/public/app-config.json`이 `web/out/app-config.json`으로 복사됩니다.
 
-Apps Script URL은 저장소 코드에 하드코딩하지 않습니다.
-
-권장 방식은 학교별 배포 시 `app-config.json`을 생성해 GitHub Pages 산출물에 포함하는 것입니다.
-
-```json
-{
-  "appsScriptUrl": "https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec"
-}
-```
-
-저장소에는 실제 URL을 커밋하지 않고, `web/public/app-config.example.json`만 예시로 둡니다.
-
-추후에는 화면 설정에서 담당자가 Apps Script URL을 입력하고 브라우저 로컬 설정에 저장하는 방식을 추가할 수 있습니다.
-
-## GitHub Pages 설정
-
-### GitHub Actions 방식
+## GitHub Actions 방식
 
 1. GitHub Actions에서 `web` 폴더 기준으로 의존성을 설치합니다.
-2. `npm run build`를 실행합니다.
-3. `web/out`을 GitHub Pages artifact로 업로드합니다.
-4. Pages 배포 환경에 게시합니다.
-
-### 브랜치 배포 방식
-
-1. 로컬 또는 CI에서 `web/out`을 생성합니다.
-2. `gh-pages` 브랜치 또는 GitHub Pages 지정 브랜치에 정적 파일을 게시합니다.
-3. 저장소 Settings > Pages에서 해당 브랜치/폴더를 선택합니다.
-
-## GitHub Pages 경로
-
-프로젝트 페이지 경로가 `/repository-name/` 형태라면 빌드 시 `NEXT_PUBLIC_BASE_PATH`를 사용할 수 있습니다.
-
-```bash
-NEXT_PUBLIC_BASE_PATH=/school-staff-training-center npm run build
-```
-
-커스텀 도메인 또는 사용자 페이지 루트에 배포하는 경우 base path 없이 빌드할 수 있습니다.
+2. `npm run lint`와 `npm run typecheck`를 실행합니다.
+3. `npm run build`로 정적 파일을 생성합니다.
+4. `web/public/app-config.json`이 포함된 `web/out`을 GitHub Pages artifact로 업로드합니다.
+5. Pages 배포 환경에 게시합니다.
 
 ## 보안 원칙
 
@@ -72,9 +62,8 @@ NEXT_PUBLIC_BASE_PATH=/school-staff-training-center npm run build
 
 ## 배포 후 확인
 
-- GitHub Pages URL에서 홈 화면이 열리는지 확인합니다.
-- 학교설정이 표시되는지 확인합니다.
-- 교육목록이 표시되는지 확인합니다.
-- Apps Script URL이 없을 때 사용자 안내가 보이는지 확인합니다.
+- GitHub Pages URL에서 첫 화면이 열리는지 확인합니다.
+- `app-config.json`이 없을 때 친절한 안내 배너가 보이는지 확인합니다.
+- 학교명, 로고, 테마 색상이 `app-config.json` 값으로 반영되는지 확인합니다.
+- 교육목록이 Apps Script Web App URL을 통해 표시되는지 확인합니다.
 - 모바일 화면에서 카드와 버튼이 가로로 넘치지 않는지 확인합니다.
-- QR 출력 화면 구현 후 A4 인쇄 미리보기를 확인합니다.
