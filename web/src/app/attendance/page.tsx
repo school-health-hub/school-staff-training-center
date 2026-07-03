@@ -35,6 +35,15 @@ function getTrainingIdFromUrl() {
   return new URLSearchParams(window.location.search).get("trainingId")?.trim() ?? "";
 }
 
+function signatureUrl(trainingId: string, staffId: string) {
+  const params = new URLSearchParams({
+    trainingId,
+    staffId
+  });
+
+  return `${APP_BASE_PATH}/signature?${params.toString()}`;
+}
+
 function CheckIcon() {
   return (
     <svg aria-hidden="true" className="icon" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.85" viewBox="0 0 24 24">
@@ -340,7 +349,16 @@ export default function AttendancePage() {
               <p>
                 {saveResult.trainingTitle || training?.title} · {saveResult.attendedAt}
               </p>
-              {saveResult.signatureRequired ? <p>전자서명은 다음 단계에서 연결됩니다.</p> : null}
+              {saveResult.signatureRequired ? (
+                <>
+                  <p>이 교육은 전자서명이 필요합니다.</p>
+                  {staff && training ? (
+                    <a className="primary-action" href={signatureUrl(training.trainingId, staff.staffId)}>
+                      전자서명 하러가기
+                    </a>
+                  ) : null}
+                </>
+              ) : null}
               <a className="ghost-button" href={`${APP_BASE_PATH}/`}>
                 홈으로 돌아가기
               </a>

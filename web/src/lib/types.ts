@@ -71,6 +71,30 @@ export type SaveAttendanceResult = {
   status: "saved" | "already";
 };
 
+export type SignatureExistsResult = {
+  exists: boolean;
+  signatureId?: string;
+  signedAt?: string;
+  fileUrl?: string;
+  fileId?: string;
+  saveStatus?: string;
+};
+
+export type SaveSignatureResult = {
+  status: "saved" | "already";
+  duplicate: boolean;
+  signatureId: string;
+  trainingId: string;
+  trainingTitle?: string;
+  staffId: string;
+  staffName?: string;
+  department?: string;
+  signedAt: string;
+  fileUrl?: string;
+  fileId?: string;
+  saveStatus: string;
+};
+
 export type AppsScriptEnvelope<T> = {
   ok?: boolean;
   data?: T;

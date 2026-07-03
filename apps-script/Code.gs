@@ -89,11 +89,14 @@ const ATTENDANCE_COLUMNS = {
 const SIGNATURE_COLUMNS = {
   SIGNATURE_ID: "서명ID",
   TRAINING_ID: "교육ID",
+  TRAINING_TITLE: "교육명",
   STAFF_ID: "교직원ID",
   STAFF_NAME: "성명",
-  SAVED_AT: "서명저장일시",
-  FILE_ID: "서명이미지파일ID",
-  FILE_URL: "서명이미지URL",
+  DEPARTMENT: "부서",
+  SIGNED_AT: "서명일시",
+  FILE_URL: "서명파일URL",
+  FILE_ID: "서명파일ID",
+  SAVE_STATUS: "저장상태",
   NOTE: "비고"
 };
 
@@ -101,11 +104,13 @@ const ACTIONS = {
   GET_SCHOOL_CONFIG: "getSchoolConfig",
   GET_TRAINING_LIST: "getTrainingList",
   GET_TRAINING_DETAIL: "getTrainingDetail",
+  GET_STAFF_DETAIL: "getStaffDetail",
   VERIFY_STAFF: "verifyStaff",
   CHECK_TRAINING_TARGET: "checkTrainingTarget",
   CHECK_DUPLICATE_ATTENDANCE: "checkDuplicateAttendance",
   SAVE_QR_ATTENDANCE: "saveQrAttendance",
   SAVE_SIGNATURE: "saveSignature",
+  CHECK_SIGNATURE_EXISTS: "checkSignatureExists",
   GET_MY_TRAINING_STATUS: "getMyTrainingStatus",
   GENERATE_FINAL_ATTENDANCE_SHEET: "generateFinalAttendanceSheet",
   GET_ADMIN_DASHBOARD_DATA: "getAdminDashboardData"
@@ -131,6 +136,14 @@ function doGet(e) {
 
   if (action === ACTIONS.GET_TRAINING_DETAIL) {
     return getTrainingDetail(e.parameter);
+  }
+
+  if (action === ACTIONS.GET_STAFF_DETAIL) {
+    return getStaffDetail(e.parameter);
+  }
+
+  if (action === ACTIONS.CHECK_SIGNATURE_EXISTS) {
+    return checkSignatureExists(e.parameter);
   }
 
   return jsonResponse({
@@ -159,6 +172,8 @@ function doPost(e) {
         return getTrainingList(payload);
       case ACTIONS.GET_TRAINING_DETAIL:
         return getTrainingDetail(payload);
+      case ACTIONS.GET_STAFF_DETAIL:
+        return getStaffDetail(payload);
       case ACTIONS.VERIFY_STAFF:
         return verifyStaff(payload);
       case ACTIONS.CHECK_TRAINING_TARGET:
@@ -169,6 +184,8 @@ function doPost(e) {
         return saveQrAttendance(payload);
       case ACTIONS.SAVE_SIGNATURE:
         return saveSignature(payload);
+      case ACTIONS.CHECK_SIGNATURE_EXISTS:
+        return checkSignatureExists(payload);
       case ACTIONS.GET_MY_TRAINING_STATUS:
         return getMyTrainingStatus(payload);
       case ACTIONS.GENERATE_FINAL_ATTENDANCE_SHEET:
@@ -295,6 +312,28 @@ function verifyStaff(payload) {
       position: staff[STAFF_COLUMNS.POSITION] || ""
     }
   });
+}
+
+/**
+ * Read one staff member from 02_교직원명단.
+ *
+ * Input: { staffId: string }
+ * Output: { staffId, name, department, position }
+ */
+function getStaffDetail(payload) {
+  const staffId = payload && payload.staffId ? String(payload.staffId).trim() : "";
+
+  if (!staffId) {
+    return errorResponse("교직원ID가 필요합니다.", "MISSING_STAFF_ID");
+  }
+
+  const staff = findByColumn(SHEET_NAMES.STAFF, STAFF_COLUMNS.STAFF_ID, staffId);
+
+  if (!staff || !isActiveStaff(staff)) {
+    return errorResponse("교직원 정보를 찾을 수 없습니다.", "STAFF_NOT_FOUND");
+  }
+
+  return jsonResponse(normalizeStaffRow_(staff));
 }
 
 /**
@@ -445,20 +484,127 @@ function saveQrAttendance(payload) {
 }
 
 /**
- * Save signature metadata to 05_전자서명기록.
+ * Check signature duplication from 05_전자서명기록.
  *
- * Input: { trainingId: string, staffId: string, signatureImageBase64: string }
- * Output: placeholder response until Drive save is implemented.
- * TODO: Save signature image to CONFIG_KEYS.SIGNATURE_FOLDER_ID and record only file ID/URL in Sheet.
+ * Input: { trainingId: string, staffId: string }
+ * Output: { exists, signatureId, signedAt, fileUrl, saveStatus }
  */
-function saveSignature(payload) {
-  if (!payload || !payload.trainingId || !payload.staffId) {
+function checkSignatureExists(payload) {
+  const trainingId = payload && payload.trainingId ? String(payload.trainingId).trim() : "";
+  const staffId = payload && payload.staffId ? String(payload.staffId).trim() : "";
+
+  if (!trainingId || !staffId) {
     return errorResponse("교육ID와 교직원ID가 필요합니다.", "MISSING_SIGNATURE_KEYS");
   }
 
+  const existing = findSignature_(trainingId, staffId);
+
+  if (!existing) {
+    return jsonResponse({
+      exists: false,
+      signatureId: "",
+      signedAt: "",
+      fileUrl: "",
+      saveStatus: ""
+    });
+  }
+
   return jsonResponse({
-    status: "todo",
-    message: "전자서명 Drive 저장은 다음 단계에서 구현합니다."
+    exists: true,
+    signatureId: existing[SIGNATURE_COLUMNS.SIGNATURE_ID] || "",
+    signedAt: serializeDateTime_(existing[SIGNATURE_COLUMNS.SIGNED_AT]),
+    fileUrl: existing[SIGNATURE_COLUMNS.FILE_URL] || "",
+    fileId: existing[SIGNATURE_COLUMNS.FILE_ID] || "",
+    saveStatus: existing[SIGNATURE_COLUMNS.SAVE_STATUS] || "완료"
+  });
+}
+
+/**
+ * Save signature image to Google Drive and metadata to 05_전자서명기록.
+ *
+ * Input: { trainingId: string, staffId: string, signatureImageBase64: string }
+ * Output: saved signature metadata.
+ */
+function saveSignature(payload) {
+  const trainingId = payload && payload.trainingId ? String(payload.trainingId).trim() : "";
+  const staffId = payload && payload.staffId ? String(payload.staffId).trim() : "";
+  const signatureImageBase64 = payload && payload.signatureImageBase64 ? String(payload.signatureImageBase64) : "";
+
+  if (!trainingId || !staffId) {
+    return errorResponse("교육ID와 교직원ID가 필요합니다.", "MISSING_SIGNATURE_KEYS");
+  }
+
+  if (!signatureImageBase64) {
+    return errorResponse("서명 이미지가 필요합니다.", "MISSING_SIGNATURE_IMAGE");
+  }
+
+  const training = findByColumn(SHEET_NAMES.TRAININGS, TRAINING_COLUMNS.TRAINING_ID, trainingId);
+  if (!training) {
+    return errorResponse("교육 정보를 찾을 수 없습니다.", "TRAINING_NOT_FOUND");
+  }
+
+  const staff = findByColumn(SHEET_NAMES.STAFF, STAFF_COLUMNS.STAFF_ID, staffId);
+  if (!staff || !isActiveStaff(staff)) {
+    return errorResponse("교직원 정보를 찾을 수 없습니다.", "STAFF_NOT_FOUND");
+  }
+
+  const existing = findSignature_(trainingId, staffId);
+  if (existing) {
+    return jsonResponse({
+      status: "already",
+      duplicate: true,
+      signatureId: existing[SIGNATURE_COLUMNS.SIGNATURE_ID] || "",
+      trainingId: trainingId,
+      staffId: staffId,
+      signedAt: serializeDateTime_(existing[SIGNATURE_COLUMNS.SIGNED_AT]),
+      fileUrl: existing[SIGNATURE_COLUMNS.FILE_URL] || "",
+      fileId: existing[SIGNATURE_COLUMNS.FILE_ID] || "",
+      saveStatus: existing[SIGNATURE_COLUMNS.SAVE_STATUS] || "완료"
+    });
+  }
+
+  const folderId = getSignatureFolderId_();
+  if (!folderId) {
+    return errorResponse("전자서명 저장 폴더가 설정되지 않았습니다.", "SIGNATURE_FOLDER_NOT_CONFIGURED");
+  }
+
+  const normalizedTraining = normalizeTrainingRow_(training);
+  const normalizedStaff = normalizeStaffRow_(staff);
+  const signedAt = new Date();
+  const signatureId = createId_("SIG");
+  const blob = signatureImageBlob_(signatureImageBase64, signatureId + ".png");
+  const folder = DriveApp.getFolderById(folderId);
+  const file = folder.createFile(blob);
+  const fileUrl = file.getUrl();
+  const fileId = file.getId();
+
+  appendRow(SHEET_NAMES.SIGNATURES, {
+    [SIGNATURE_COLUMNS.SIGNATURE_ID]: signatureId,
+    [SIGNATURE_COLUMNS.TRAINING_ID]: trainingId,
+    [SIGNATURE_COLUMNS.TRAINING_TITLE]: normalizedTraining.title,
+    [SIGNATURE_COLUMNS.STAFF_ID]: staffId,
+    [SIGNATURE_COLUMNS.STAFF_NAME]: normalizedStaff.name,
+    [SIGNATURE_COLUMNS.DEPARTMENT]: normalizedStaff.department,
+    [SIGNATURE_COLUMNS.SIGNED_AT]: signedAt,
+    [SIGNATURE_COLUMNS.FILE_URL]: fileUrl,
+    [SIGNATURE_COLUMNS.FILE_ID]: fileId,
+    [SIGNATURE_COLUMNS.SAVE_STATUS]: "완료",
+    [SIGNATURE_COLUMNS.NOTE]: ""
+  });
+
+  return jsonResponse({
+    status: "saved",
+    duplicate: false,
+    signatureId: signatureId,
+    trainingId: trainingId,
+    trainingTitle: normalizedTraining.title,
+    staffId: staffId,
+    staffName: normalizedStaff.name,
+    department: normalizedStaff.department,
+    signedAt: serializeDateTime_(signedAt),
+    fileUrl: fileUrl,
+    fileId: fileId,
+    saveStatus: "완료"
   });
 }
 
@@ -689,6 +835,13 @@ function getHeaderMap(sheet) {
 }
 
 function getRequiredHeadersForSheet_(sheetName) {
+  if (sheetName === SHEET_NAMES.CONFIG) {
+    return [
+      "설정키",
+      "설정값"
+    ];
+  }
+
   if (sheetName === SHEET_NAMES.TRAININGS) {
     return [
       TRAINING_COLUMNS.TRAINING_ID,
@@ -718,6 +871,14 @@ function getRequiredHeadersForSheet_(sheetName) {
       ATTENDANCE_COLUMNS.ATTENDANCE_ID,
       ATTENDANCE_COLUMNS.TRAINING_ID,
       ATTENDANCE_COLUMNS.STAFF_ID
+    ];
+  }
+
+  if (sheetName === SHEET_NAMES.SIGNATURES) {
+    return [
+      SIGNATURE_COLUMNS.SIGNATURE_ID,
+      SIGNATURE_COLUMNS.TRAINING_ID,
+      SIGNATURE_COLUMNS.STAFF_ID
     ];
   }
 
@@ -781,11 +942,60 @@ function normalizeTrainingRow_(row) {
   };
 }
 
+function normalizeStaffRow_(row) {
+  return {
+    staffId: row[STAFF_COLUMNS.STAFF_ID] || "",
+    name: row[STAFF_COLUMNS.NAME] || "",
+    department: row[STAFF_COLUMNS.DEPARTMENT] || "",
+    position: row[STAFF_COLUMNS.POSITION] || ""
+  };
+}
+
 function findAttendance_(trainingId, staffId) {
   return readRows(SHEET_NAMES.ATTENDANCE).find(function (row) {
     return String(row[ATTENDANCE_COLUMNS.TRAINING_ID] || "").trim() === String(trainingId || "").trim() &&
       String(row[ATTENDANCE_COLUMNS.STAFF_ID] || "").trim() === String(staffId || "").trim();
   }) || null;
+}
+
+function findSignature_(trainingId, staffId) {
+  return readRows(SHEET_NAMES.SIGNATURES).find(function (row) {
+    return String(row[SIGNATURE_COLUMNS.TRAINING_ID] || "").trim() === String(trainingId || "").trim() &&
+      String(row[SIGNATURE_COLUMNS.STAFF_ID] || "").trim() === String(staffId || "").trim();
+  }) || null;
+}
+
+function getConfigMap_() {
+  const rows = readRows(SHEET_NAMES.CONFIG);
+  const config = {};
+
+  rows.forEach(function (row) {
+    const key = row["설정키"] || row["항목"] || row["key"] || row["Key"] || "";
+    const value = row["설정값"] || row["값"] || row["value"] || row["Value"] || "";
+    if (key) {
+      config[String(key).trim()] = value;
+    }
+  });
+
+  return config;
+}
+
+function getSignatureFolderId_() {
+  const config = getConfigMap_();
+  return String(
+    config.signatureFolderId ||
+      config["signatureFolderId"] ||
+      config[CONFIG_KEYS.SIGNATURE_FOLDER_ID] ||
+      config["전자서명저장폴더ID"] ||
+      ""
+  ).trim();
+}
+
+function signatureImageBlob_(signatureImageBase64, filename) {
+  const normalized = String(signatureImageBase64 || "").trim();
+  const base64 = normalized.indexOf(",") !== -1 ? normalized.split(",").pop() : normalized;
+  const bytes = Utilities.base64Decode(base64);
+  return Utilities.newBlob(bytes, "image/png", filename);
 }
 
 function serializeDate_(value) {

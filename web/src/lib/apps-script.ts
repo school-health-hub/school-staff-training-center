@@ -3,7 +3,9 @@ import type {
   AppsScriptEnvelope,
   DuplicateAttendanceResult,
   SaveAttendanceResult,
+  SaveSignatureResult,
   SchoolConfig,
+  SignatureExistsResult,
   Staff,
   Training,
   TrainingTargetResult
@@ -22,10 +24,13 @@ export type AppsScriptAction =
   | "getSchoolConfig"
   | "getTrainingList"
   | "getTrainingDetail"
+  | "getStaffDetail"
   | "verifyStaff"
   | "checkTrainingTarget"
   | "checkDuplicateAttendance"
-  | "saveQrAttendance";
+  | "saveQrAttendance"
+  | "checkSignatureExists"
+  | "saveSignature";
 
 export type RuntimeConfigResult =
   | {
@@ -217,6 +222,17 @@ export async function getTrainingDetail(config: AppConfig, trainingId: string): 
   }
 }
 
+export async function getStaffDetail(config: AppConfig, staffId: string): Promise<{ data?: Staff; error?: string }> {
+  try {
+    const staff = await requestAppsScript<Staff>(config, "getStaffDetail", { staffId });
+    return { data: staff };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "교직원 정보를 불러오지 못했습니다."
+    };
+  }
+}
+
 export async function verifyStaff(config: AppConfig, staffQuery: string, authCode: string): Promise<{ data?: Staff; error?: string }> {
   try {
     const payload = await requestAppsScript<{ staff?: Staff } | Staff>(config, "verifyStaff", { staffQuery, authCode });
@@ -279,6 +295,41 @@ export async function saveQrAttendance(
   } catch (error) {
     return {
       error: error instanceof Error ? error.message : "출석을 저장하지 못했습니다."
+    };
+  }
+}
+
+export async function checkSignatureExists(
+  config: AppConfig,
+  trainingId: string,
+  staffId: string
+): Promise<{ data?: SignatureExistsResult; error?: string }> {
+  try {
+    const data = await requestAppsScript<SignatureExistsResult>(config, "checkSignatureExists", { trainingId, staffId });
+    return { data };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "전자서명 기록을 확인하지 못했습니다."
+    };
+  }
+}
+
+export async function saveSignature(
+  config: AppConfig,
+  trainingId: string,
+  staffId: string,
+  signatureImageBase64: string
+): Promise<{ data?: SaveSignatureResult; error?: string }> {
+  try {
+    const data = await requestAppsScript<SaveSignatureResult>(config, "saveSignature", {
+      trainingId,
+      staffId,
+      signatureImageBase64
+    });
+    return { data };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "전자서명을 저장하지 못했습니다."
     };
   }
 }
