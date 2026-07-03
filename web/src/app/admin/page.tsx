@@ -17,6 +17,11 @@ const adminItems = [
     href: "/admin/final-sheet"
   },
   {
+    title: "교직원 명단",
+    description: "교직원 정보를 확인하고 재직상태를 관리합니다.",
+    href: "/admin/staff"
+  },
+  {
     title: "설정 관리",
     description: "학교 기본정보, 브랜드, 저장 폴더를 관리합니다.",
     href: "/admin/settings"

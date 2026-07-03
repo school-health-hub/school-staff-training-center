@@ -56,6 +56,25 @@ export type Staff = {
   position?: string;
 };
 
+export type AdminStaff = Staff & {
+  authCode?: string;
+  employmentStatus: "재직" | "비활성" | string;
+  role: "관리자" | "담당자" | "교직원" | string;
+  note?: string;
+};
+
+export type StaffListSummary = {
+  total: number;
+  active: number;
+  inactive: number;
+  managers: number;
+};
+
+export type StaffListResult = {
+  summary: StaffListSummary;
+  staff: AdminStaff[];
+};
+
 export type TrainingTargetResult = {
   isTarget: boolean;
   signatureExcluded?: boolean;

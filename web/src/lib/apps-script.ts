@@ -1,6 +1,7 @@
 import type {
   AppConfig,
   AdminAttendanceStatusResult,
+  AdminStaff,
   AppsScriptEnvelope,
   DuplicateAttendanceResult,
   FinalAttendanceGenerateResult,
@@ -12,6 +13,7 @@ import type {
   SetupValidationResult,
   SignatureExistsResult,
   Staff,
+  StaffListResult,
   Training,
   TrainingTargetResult
 } from "@/lib/types";
@@ -30,6 +32,10 @@ export type AppsScriptAction =
   | "getTrainingList"
   | "getTrainingDetail"
   | "getStaffDetail"
+  | "getStaffList"
+  | "createStaff"
+  | "updateStaff"
+  | "deactivateStaff"
   | "verifyStaff"
   | "checkTrainingTarget"
   | "checkDuplicateAttendance"
@@ -256,6 +262,54 @@ export async function getStaffDetail(config: AppConfig, staffId: string): Promis
   } catch (error) {
     return {
       error: error instanceof Error ? error.message : "교직원 정보를 불러오지 못했습니다."
+    };
+  }
+}
+
+export async function getStaffList(config: AppConfig): Promise<{ data?: StaffListResult; error?: string }> {
+  try {
+    const data = await requestAppsScript<StaffListResult>(config, "getStaffList");
+    return { data };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "교직원 명단을 불러오지 못했습니다."
+    };
+  }
+}
+
+export async function createStaff(config: AppConfig, staff: Partial<AdminStaff>): Promise<{ data?: AdminStaff; error?: string }> {
+  try {
+    const data = await requestAppsScript<AdminStaff>(config, "createStaff", { staff });
+    return { data };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "교직원을 추가하지 못했습니다."
+    };
+  }
+}
+
+export async function updateStaff(
+  config: AppConfig,
+  staffId: string,
+  staff: Partial<AdminStaff>
+): Promise<{ data?: AdminStaff; error?: string }> {
+  try {
+    const data = await requestAppsScript<AdminStaff>(config, "updateStaff", { staffId, staff });
+    return { data };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "교직원 정보를 저장하지 못했습니다."
+    };
+  }
+}
+
+export async function deactivateStaff(config: AppConfig, staffId: string): Promise<{ data?: AdminStaff; error?: string }> {
+  try {
+    const data = await requestAppsScript<AdminStaff>(config, "deactivateStaff", { staffId });
+    return { data };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "재직상태를 변경하지 못했습니다."
     };
   }
 }

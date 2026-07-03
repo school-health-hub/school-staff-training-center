@@ -62,6 +62,7 @@ const STAFF_COLUMNS = {
   POSITION: "직위",
   AUTH_CODE: "인증코드",
   EMPLOYMENT_STATUS: "재직상태",
+  ROLE: "권한",
   NOTE: "비고"
 };
 
@@ -136,6 +137,10 @@ const ACTIONS = {
   GET_TRAINING_LIST: "getTrainingList",
   GET_TRAINING_DETAIL: "getTrainingDetail",
   GET_STAFF_DETAIL: "getStaffDetail",
+  GET_STAFF_LIST: "getStaffList",
+  CREATE_STAFF: "createStaff",
+  UPDATE_STAFF: "updateStaff",
+  DEACTIVATE_STAFF: "deactivateStaff",
   VERIFY_STAFF: "verifyStaff",
   CHECK_TRAINING_TARGET: "checkTrainingTarget",
   CHECK_DUPLICATE_ATTENDANCE: "checkDuplicateAttendance",
@@ -221,6 +226,14 @@ function doPost(e) {
         return getTrainingDetail(payload);
       case ACTIONS.GET_STAFF_DETAIL:
         return getStaffDetail(payload);
+      case ACTIONS.GET_STAFF_LIST:
+        return getStaffList();
+      case ACTIONS.CREATE_STAFF:
+        return createStaff(payload);
+      case ACTIONS.UPDATE_STAFF:
+        return updateStaff(payload);
+      case ACTIONS.DEACTIVATE_STAFF:
+        return deactivateStaff(payload);
       case ACTIONS.VERIFY_STAFF:
         return verifyStaff(payload);
       case ACTIONS.CHECK_TRAINING_TARGET:
@@ -547,6 +560,122 @@ function getStaffDetail(payload) {
   }
 
   return jsonResponse(normalizeStaffRow_(staff));
+}
+
+/**
+ * Read staff list for admin management.
+ *
+ * Input: none
+ * Output: { summary, staff }
+ */
+function getStaffList() {
+  const staff = readRows(SHEET_NAMES.STAFF).map(normalizeStaffAdminRow_);
+  const summary = {
+    total: staff.length,
+    active: staff.filter(function (item) {
+      return isActiveStaffStatus_(item.employmentStatus);
+    }).length,
+    inactive: staff.filter(function (item) {
+      return !isActiveStaffStatus_(item.employmentStatus);
+    }).length,
+    managers: staff.filter(function (item) {
+      return isManagerRole_(item.role);
+    }).length
+  };
+
+  return jsonResponse({
+    summary: summary,
+    staff: staff
+  });
+}
+
+/**
+ * Create one staff member in 02_교직원명단.
+ *
+ * Input: { staff: { name, department, position, authCode, employmentStatus, role, note } }
+ * Output: created staff item
+ */
+function createStaff(payload) {
+  const input = payload && payload.staff ? payload.staff : payload || {};
+  const name = String(input.name || "").trim();
+
+  if (!name) {
+    return errorResponse("성명을 입력해주세요.", "MISSING_STAFF_NAME");
+  }
+
+  const row = {};
+  row[STAFF_COLUMNS.STAFF_ID] = createId_("STF");
+  row[STAFF_COLUMNS.NAME] = name;
+  row[STAFF_COLUMNS.DEPARTMENT] = String(input.department || "").trim();
+  row[STAFF_COLUMNS.POSITION] = String(input.position || "").trim();
+  row[STAFF_COLUMNS.AUTH_CODE] = String(input.authCode || "").trim() || createAuthCode_();
+  row[STAFF_COLUMNS.EMPLOYMENT_STATUS] = String(input.employmentStatus || "").trim() || "재직";
+  row[STAFF_COLUMNS.ROLE] = String(input.role || "").trim() || "교직원";
+  row[STAFF_COLUMNS.NOTE] = String(input.note || "").trim();
+
+  appendRow(SHEET_NAMES.STAFF, row);
+  return jsonResponse(normalizeStaffAdminRow_(row));
+}
+
+/**
+ * Update one staff member in 02_교직원명단.
+ *
+ * Input: { staffId, staff: editable fields }
+ * Output: updated staff item
+ */
+function updateStaff(payload) {
+  const staffId = String(payload && payload.staffId || "").trim();
+  const input = payload && payload.staff ? payload.staff : {};
+
+  if (!staffId) {
+    return errorResponse("교직원ID가 필요합니다.", "MISSING_STAFF_ID");
+  }
+
+  const updates = {};
+  [
+    ["name", STAFF_COLUMNS.NAME],
+    ["department", STAFF_COLUMNS.DEPARTMENT],
+    ["position", STAFF_COLUMNS.POSITION],
+    ["authCode", STAFF_COLUMNS.AUTH_CODE],
+    ["employmentStatus", STAFF_COLUMNS.EMPLOYMENT_STATUS],
+    ["role", STAFF_COLUMNS.ROLE],
+    ["note", STAFF_COLUMNS.NOTE]
+  ].forEach(function (pair) {
+    if (input[pair[0]] !== undefined) {
+      updates[pair[1]] = String(input[pair[0]] || "").trim();
+    }
+  });
+
+  const updated = updateStaffRow_(staffId, updates);
+  if (!updated) {
+    return errorResponse("교직원 정보를 찾을 수 없습니다.", "STAFF_NOT_FOUND");
+  }
+
+  return jsonResponse(updated);
+}
+
+/**
+ * Mark one staff member as inactive.
+ *
+ * Input: { staffId }
+ * Output: updated staff item
+ */
+function deactivateStaff(payload) {
+  const staffId = String(payload && payload.staffId || "").trim();
+
+  if (!staffId) {
+    return errorResponse("교직원ID가 필요합니다.", "MISSING_STAFF_ID");
+  }
+
+  const updated = updateStaffRow_(staffId, {
+    [STAFF_COLUMNS.EMPLOYMENT_STATUS]: "비활성"
+  });
+
+  if (!updated) {
+    return errorResponse("교직원 정보를 찾을 수 없습니다.", "STAFF_NOT_FOUND");
+  }
+
+  return jsonResponse(updated);
 }
 
 /**
@@ -1392,6 +1521,58 @@ function normalizeStaffRow_(row) {
   };
 }
 
+function normalizeStaffAdminRow_(row) {
+  return {
+    staffId: row[STAFF_COLUMNS.STAFF_ID] || "",
+    name: row[STAFF_COLUMNS.NAME] || "",
+    department: row[STAFF_COLUMNS.DEPARTMENT] || "",
+    position: row[STAFF_COLUMNS.POSITION] || "",
+    authCode: row[STAFF_COLUMNS.AUTH_CODE] || "",
+    employmentStatus: row[STAFF_COLUMNS.EMPLOYMENT_STATUS] || "재직",
+    role: row[STAFF_COLUMNS.ROLE] || "교직원",
+    note: row[STAFF_COLUMNS.NOTE] || ""
+  };
+}
+
+function updateStaffRow_(staffId, updates) {
+  const sheet = getSheetByName(SHEET_NAMES.STAFF);
+  const values = sheet.getDataRange().getValues();
+  const headerRowIndex = findHeaderRowIndex_(values, getRequiredHeadersForSheet_(SHEET_NAMES.STAFF));
+  const headers = values[headerRowIndex] || [];
+  const staffIdColumnIndex = findFirstHeaderIndex_(headers, [STAFF_COLUMNS.STAFF_ID]);
+
+  if (staffIdColumnIndex === -1) {
+    return null;
+  }
+
+  for (let rowIndex = headerRowIndex + 1; rowIndex < values.length; rowIndex += 1) {
+    if (String(values[rowIndex][staffIdColumnIndex] || "").trim() !== staffId) {
+      continue;
+    }
+
+    Object.keys(updates).forEach(function (columnName) {
+      const columnIndex = findFirstHeaderIndex_(headers, [columnName]);
+      if (columnIndex !== -1) {
+        sheet.getRange(rowIndex + 1, columnIndex + 1).setValue(updates[columnName]);
+      }
+    });
+
+    const updatedRow = {};
+    headers.forEach(function (header, index) {
+      if (!header) {
+        return;
+      }
+
+      const headerName = String(header);
+      updatedRow[headerName] = updates[headerName] !== undefined ? updates[headerName] : values[rowIndex][index];
+    });
+
+    return normalizeStaffAdminRow_(updatedRow);
+  }
+
+  return null;
+}
+
 function findAttendance_(trainingId, staffId) {
   return readRows(SHEET_NAMES.ATTENDANCE).find(function (row) {
     return String(row[ATTENDANCE_COLUMNS.TRAINING_ID] || "").trim() === String(trainingId || "").trim() &&
@@ -1680,6 +1861,19 @@ function serializeDateTime_(value) {
 function isActiveStaff(row) {
   const status = String(row[STAFF_COLUMNS.EMPLOYMENT_STATUS] || "").trim();
   return !status || status === "재직" || status.toLowerCase() === "active";
+}
+
+function isActiveStaffStatus_(status) {
+  const normalized = String(status || "").trim();
+  return !normalized || normalized === "재직" || normalized.toLowerCase() === "active";
+}
+
+function isManagerRole_(role) {
+  return ["관리자", "담당자"].indexOf(String(role || "").trim()) !== -1;
+}
+
+function createAuthCode_() {
+  return Utilities.getUuid().replace(/-/g, "").slice(0, 6).toUpperCase();
 }
 
 function createId_(prefix) {
