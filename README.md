@@ -96,3 +96,9 @@ Next.js는 `output: "export"`로 정적 파일을 생성합니다. 배포 결과
 - 실제 Apps Script URL은 `web/public/app-config.json`에서 관리하고, GitHub Pages에는 빌드 산출물로 복사된 `app-config.json`이 배포됩니다.
 
 자세한 배포 절차는 [docs/deployment.md](docs/deployment.md)를 참고합니다.
+
+## 관리자 인증 안내
+
+관리자 화면은 `00_학교설정` 탭의 `adminCode` 값으로 최소 인증을 수행합니다. 브라우저에는 인증 성공 여부만 세션 동안 저장하며, 관리자 코드 원문은 저장하지 않습니다.
+
+이 기능은 학교 내부 운영용 간단 보호 장치입니다. 외부 공개 서비스 수준의 완전한 접근 제어를 대체하지 않습니다.

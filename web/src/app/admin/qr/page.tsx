@@ -1,5 +1,6 @@
 "use client";
 
+import { AdminAuthGate, AdminLogoutButton } from "@/components/admin-auth-gate";
 import { getTrainingList, loadAppConfig } from "@/lib/apps-script";
 import type { SchoolConfig, Training } from "@/lib/types";
 import { useEffect, useMemo, useState } from "react";
@@ -307,7 +308,8 @@ export default function AdminQrPage() {
   const qrSvg = useMemo(() => (qrUrl ? createQrSvg(qrUrl) : ""), [qrUrl]);
 
   return (
-    <main className="page admin-qr-page">
+    <AdminAuthGate>
+      <main className="page admin-qr-page">
       <div className="dashboard-shell">
         <div className="route-actions print-hidden">
           <a className="ghost-button" href={`${APP_BASE_PATH}/`}>
@@ -316,6 +318,7 @@ export default function AdminQrPage() {
           <a className="ghost-button" href={`${APP_BASE_PATH}/admin`}>
             관리자 메뉴
           </a>
+          <AdminLogoutButton />
         </div>
 
         <section className="today-card print-hidden" aria-label="QR 출력">
@@ -420,6 +423,7 @@ export default function AdminQrPage() {
           </section>
         </div>
       </div>
-    </main>
+      </main>
+    </AdminAuthGate>
   );
 }

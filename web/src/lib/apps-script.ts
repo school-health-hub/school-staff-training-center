@@ -36,6 +36,7 @@ export type AppsScriptAction =
   | "createStaff"
   | "updateStaff"
   | "deactivateStaff"
+  | "verifyAdminCode"
   | "verifyStaff"
   | "checkTrainingTarget"
   | "checkDuplicateAttendance"
@@ -273,6 +274,17 @@ export async function getStaffList(config: AppConfig): Promise<{ data?: StaffLis
   } catch (error) {
     return {
       error: error instanceof Error ? error.message : "교직원 명단을 불러오지 못했습니다."
+    };
+  }
+}
+
+export async function verifyAdminCode(config: AppConfig, adminCode: string): Promise<{ data?: { verified: boolean }; error?: string }> {
+  try {
+    const data = await requestAppsScript<{ verified: boolean }>(config, "verifyAdminCode", { adminCode });
+    return { data };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "관리자 코드가 일치하지 않습니다."
     };
   }
 }

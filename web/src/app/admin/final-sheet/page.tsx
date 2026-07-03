@@ -1,5 +1,6 @@
 "use client";
 
+import { AdminAuthGate, AdminLogoutButton } from "@/components/admin-auth-gate";
 import { generateFinalAttendanceSheet, getFinalAttendancePreview, getTrainingList, loadAppConfig } from "@/lib/apps-script";
 import type { AppConfig, FinalAttendancePreviewResult, FinalAttendanceRow, Training } from "@/lib/types";
 import { useEffect, useMemo, useState } from "react";
@@ -189,7 +190,8 @@ export default function AdminFinalSheetPage() {
   }
 
   return (
-    <main className="page">
+    <AdminAuthGate>
+      <main className="page">
       <div className="dashboard-shell">
         <div className="route-actions">
           <a className="ghost-button" href={`${APP_BASE_PATH}/`}>
@@ -198,6 +200,7 @@ export default function AdminFinalSheetPage() {
           <a className="ghost-button" href={`${APP_BASE_PATH}/admin`}>
             관리자 메뉴
           </a>
+          <AdminLogoutButton />
         </div>
 
         <section className="today-card" aria-label="최종 서명부">
@@ -363,6 +366,7 @@ export default function AdminFinalSheetPage() {
           </section>
         </div>
       </div>
-    </main>
+      </main>
+    </AdminAuthGate>
   );
 }

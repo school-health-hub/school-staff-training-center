@@ -1,3 +1,5 @@
+import { AdminAuthGate, AdminLogoutButton } from "@/components/admin-auth-gate";
+
 const APP_BASE_PATH = "/school-staff-training-center";
 
 const adminItems = [
@@ -51,12 +53,14 @@ function ChevronIcon() {
 
 export default function AdminPage() {
   return (
-    <main className="page">
+    <AdminAuthGate>
+      <main className="page">
       <div className="dashboard-shell">
         <div className="route-actions">
           <a className="ghost-button" href={`${APP_BASE_PATH}/`}>
             홈으로
           </a>
+          <AdminLogoutButton />
         </div>
 
         <section className="today-card" aria-label="관리자 메뉴">
@@ -95,6 +99,7 @@ export default function AdminPage() {
           </div>
         </section>
       </div>
-    </main>
+      </main>
+    </AdminAuthGate>
   );
 }

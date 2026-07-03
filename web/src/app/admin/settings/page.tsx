@@ -1,5 +1,6 @@
 "use client";
 
+import { AdminAuthGate, AdminLogoutButton } from "@/components/admin-auth-gate";
 import { getSchoolConfig, loadAppConfig, updateSchoolConfig } from "@/lib/apps-script";
 import type { AppConfig, SchoolConfig } from "@/lib/types";
 import { useEffect, useMemo, useState, type ChangeEvent, type CSSProperties, type FormEvent } from "react";
@@ -60,7 +61,7 @@ function formFromSchoolConfig(config: SchoolConfig): SettingsForm {
 }
 
 function payloadFromForm(form: SettingsForm): Partial<SchoolConfig> {
-  return {
+  const payload: Partial<SchoolConfig> = {
     schoolName: form.schoolName,
     centerName: form.centerName,
     logoUrl: form.logoUrl,
@@ -73,9 +74,14 @@ function payloadFromForm(form: SettingsForm): Partial<SchoolConfig> {
     certificateFolderId: form.certificateFolderId,
     finalRosterFolderId: form.finalRosterFolderId,
     privacyNotice: form.privacyNotice,
-    adminCode: form.adminCode,
     activeSemester: form.activeSemester
   };
+
+  if (form.adminCode.trim()) {
+    payload.adminCode = form.adminCode.trim();
+  }
+
+  return payload;
 }
 
 function CheckIcon() {
@@ -189,7 +195,8 @@ export default function AdminSettingsPage() {
   }
 
   return (
-    <main className="page" style={previewStyle}>
+    <AdminAuthGate>
+      <main className="page" style={previewStyle}>
       <div className="dashboard-shell">
         <div className="route-actions">
           <a className="ghost-button" href={`${APP_BASE_PATH}/admin/`}>
@@ -198,6 +205,7 @@ export default function AdminSettingsPage() {
           <a className="ghost-button" href={`${APP_BASE_PATH}/`}>
             홈으로
           </a>
+          <AdminLogoutButton />
         </div>
 
         <section className="today-card" aria-label="설정 관리">
@@ -295,7 +303,7 @@ export default function AdminSettingsPage() {
               </div>
             </div>
             <div className="settings-grid">
-              <Field help="관리자 기능 보호에 사용할 코드입니다. 교직원 인증코드와 별도로 관리해주세요." label="관리자코드" name="adminCode" onChange={handleChange} type="password" value={form.adminCode} />
+              <Field help="기존 코드는 화면에 표시하지 않습니다. 새 코드를 입력한 경우에만 변경됩니다." label="관리자코드" name="adminCode" onChange={handleChange} type="password" value={form.adminCode} />
             </div>
           </section>
 
@@ -306,6 +314,7 @@ export default function AdminSettingsPage() {
           </div>
         </form>
       </div>
-    </main>
+      </main>
+    </AdminAuthGate>
   );
 }

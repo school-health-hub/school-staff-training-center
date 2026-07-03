@@ -1,5 +1,6 @@
 "use client";
 
+import { AdminAuthGate, AdminLogoutButton } from "@/components/admin-auth-gate";
 import { getTrainingAttendanceStatus, getTrainingList, loadAppConfig } from "@/lib/apps-script";
 import type { AdminAttendanceStatusGroup, AdminAttendanceStatusItem, AdminAttendanceStatusResult, AppConfig, Training } from "@/lib/types";
 import { useEffect, useMemo, useState } from "react";
@@ -170,7 +171,8 @@ export default function AdminAttendancePage() {
   }
 
   return (
-    <main className="page">
+    <AdminAuthGate>
+      <main className="page">
       <div className="dashboard-shell">
         <div className="route-actions">
           <a className="ghost-button" href={`${APP_BASE_PATH}/`}>
@@ -179,6 +181,7 @@ export default function AdminAttendancePage() {
           <a className="ghost-button" href={`${APP_BASE_PATH}/admin`}>
             관리자 메뉴
           </a>
+          <AdminLogoutButton />
         </div>
 
         <section className="today-card" aria-label="출석현황">
@@ -360,6 +363,7 @@ export default function AdminAttendancePage() {
           </section>
         </div>
       </div>
-    </main>
+      </main>
+    </AdminAuthGate>
   );
 }

@@ -141,6 +141,7 @@ const ACTIONS = {
   CREATE_STAFF: "createStaff",
   UPDATE_STAFF: "updateStaff",
   DEACTIVATE_STAFF: "deactivateStaff",
+  VERIFY_ADMIN_CODE: "verifyAdminCode",
   VERIFY_STAFF: "verifyStaff",
   CHECK_TRAINING_TARGET: "checkTrainingTarget",
   CHECK_DUPLICATE_ATTENDANCE: "checkDuplicateAttendance",
@@ -234,6 +235,8 @@ function doPost(e) {
         return updateStaff(payload);
       case ACTIONS.DEACTIVATE_STAFF:
         return deactivateStaff(payload);
+      case ACTIONS.VERIFY_ADMIN_CODE:
+        return verifyAdminCode(payload);
       case ACTIONS.VERIFY_STAFF:
         return verifyStaff(payload);
       case ACTIONS.CHECK_TRAINING_TARGET:
@@ -296,9 +299,32 @@ function getSchoolConfig() {
     signatureFolderId: config[CONFIG_KEYS.SIGNATURE_FOLDER_ID] || config.signatureFolderId || "",
     certificateFolderId: config[CONFIG_KEYS.CERTIFICATE_FOLDER_ID] || config.certificateFolderId || "",
     finalRosterFolderId: config[CONFIG_KEYS.FINAL_ROSTER_FOLDER_ID] || config.finalRosterFolderId || "",
-    adminCode: config[CONFIG_KEYS.ADMIN_CODE] || config.adminCode || "",
     activeSemester: config[CONFIG_KEYS.ACTIVE_SEMESTER] || config.activeSemester || "",
     privacyNotice: config[CONFIG_KEYS.PRIVACY_NOTICE] || ""
+  });
+}
+
+/**
+ * Verify admin code without returning the configured code.
+ *
+ * Input: { adminCode: string }
+ * Output: { verified: boolean }
+ */
+function verifyAdminCode(payload) {
+  const inputCode = String(payload && payload.adminCode || "").trim();
+  const config = getConfigMap_();
+  const savedCode = String(getConfigValue_(config, ["adminCode", CONFIG_KEYS.ADMIN_CODE, "관리자 코드"]) || "").trim();
+
+  if (!savedCode) {
+    return errorResponse("관리자 코드가 설정되어 있지 않습니다.", "ADMIN_CODE_NOT_SET");
+  }
+
+  if (!inputCode || inputCode !== savedCode) {
+    return errorResponse("관리자 코드가 일치하지 않습니다.", "ADMIN_CODE_MISMATCH");
+  }
+
+  return jsonResponse({
+    verified: true
   });
 }
 

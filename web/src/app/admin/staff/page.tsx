@@ -1,5 +1,6 @@
 "use client";
 
+import { AdminAuthGate, AdminLogoutButton } from "@/components/admin-auth-gate";
 import { createStaff, deactivateStaff, getStaffList, loadAppConfig, updateStaff } from "@/lib/apps-script";
 import type { AdminStaff, AppConfig, StaffListResult } from "@/lib/types";
 import { useCallback, useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from "react";
@@ -244,7 +245,8 @@ export default function AdminStaffPage() {
   const summary = staffResult?.summary ?? { total: 0, active: 0, inactive: 0, managers: 0 };
 
   return (
-    <main className="page">
+    <AdminAuthGate>
+      <main className="page">
       <div className="dashboard-shell">
         <div className="route-actions">
           <a className="ghost-button" href={`${APP_BASE_PATH}/admin/`}>
@@ -253,6 +255,7 @@ export default function AdminStaffPage() {
           <a className="ghost-button" href={`${APP_BASE_PATH}/`}>
             홈으로
           </a>
+          <AdminLogoutButton />
         </div>
 
         <section className="today-card" aria-label="교직원 명단">
@@ -470,6 +473,7 @@ export default function AdminStaffPage() {
           ) : null}
         </div>
       </div>
-    </main>
+      </main>
+    </AdminAuthGate>
   );
 }
