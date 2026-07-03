@@ -29,11 +29,14 @@ export type Training = {
   title: string;
   date: string;
   time: string;
+  place?: string;
   location: string;
   department: string;
   category: string;
   qrEnabled: boolean;
   signatureRequired: boolean;
+  certificateRequired?: boolean;
+  status?: string;
   activeStatus: string;
 };
 

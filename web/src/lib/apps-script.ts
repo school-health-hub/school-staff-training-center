@@ -177,11 +177,32 @@ export async function getTrainingList(config: AppConfig): Promise<{ data: Traini
   try {
     const payload = await requestAppsScript<{ trainings?: Training[] } | Training[]>(config, "getTrainingList");
     const trainings = Array.isArray(payload) ? payload : payload.trainings ?? [];
-    return { data: trainings };
+    return { data: trainings.map(normalizeTraining) };
   } catch (error) {
     return {
       data: [],
       error: error instanceof Error ? error.message : "교육목록을 불러오지 못했습니다."
     };
   }
+}
+
+function normalizeTraining(training: Partial<Training>): Training {
+  const place = training.place ?? training.location ?? "";
+  const status = training.status ?? training.activeStatus ?? "";
+
+  return {
+    trainingId: training.trainingId ?? "",
+    title: training.title ?? "",
+    date: training.date ?? "",
+    time: training.time ?? "",
+    place,
+    location: place,
+    department: training.department ?? "",
+    category: training.category ?? "",
+    qrEnabled: Boolean(training.qrEnabled),
+    signatureRequired: Boolean(training.signatureRequired),
+    certificateRequired: Boolean(training.certificateRequired),
+    status,
+    activeStatus: status
+  };
 }

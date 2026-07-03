@@ -47,6 +47,7 @@ const TRAINING_COLUMNS = {
   CATEGORY: "교육구분",
   QR_ENABLED: "QR사용여부",
   SIGNATURE_REQUIRED: "전자서명필요여부",
+  CERTIFICATE_REQUIRED: "이수증제출필요여부",
   ACTIVE_STATUS: "활성상태",
   NOTE: "비고"
 };
@@ -119,6 +120,10 @@ function doGet(e) {
 
   if (action === ACTIONS.GET_SCHOOL_CONFIG) {
     return getSchoolConfig();
+  }
+
+  if (action === ACTIONS.GET_TRAINING_LIST) {
+    return getTrainingList(e.parameter);
   }
 
   return jsonResponse({
@@ -209,28 +214,34 @@ function getSchoolConfig() {
  * TODO: Normalize TRUE/FALSE and active status values after real sheet samples are confirmed.
  */
 function getTrainingList(payload) {
-  const includeInactive = Boolean(payload && payload.includeInactive);
+  const includeInactive = payload && isTruthy(payload.includeInactive);
   const rows = readRows(SHEET_NAMES.TRAININGS);
   const trainings = rows
     .filter(function (row) {
-      return includeInactive || isTruthy(row[TRAINING_COLUMNS.ACTIVE_STATUS]);
+      return includeInactive || isActiveTrainingStatus(row[TRAINING_COLUMNS.ACTIVE_STATUS]);
     })
     .map(function (row) {
+      const place = row[TRAINING_COLUMNS.LOCATION] || "";
+      const status = String(row[TRAINING_COLUMNS.ACTIVE_STATUS] || "").trim();
+
       return {
         trainingId: row[TRAINING_COLUMNS.TRAINING_ID] || "",
         title: row[TRAINING_COLUMNS.TITLE] || "",
-        date: row[TRAINING_COLUMNS.DATE] || "",
-        time: row[TRAINING_COLUMNS.TIME] || "",
-        location: row[TRAINING_COLUMNS.LOCATION] || "",
+        date: serializeDate_(row[TRAINING_COLUMNS.DATE]),
+        time: serializeTime_(row[TRAINING_COLUMNS.TIME]),
+        place: place,
+        location: place,
         department: row[TRAINING_COLUMNS.DEPARTMENT] || "",
         category: row[TRAINING_COLUMNS.CATEGORY] || "",
         qrEnabled: isTruthy(row[TRAINING_COLUMNS.QR_ENABLED]),
         signatureRequired: isTruthy(row[TRAINING_COLUMNS.SIGNATURE_REQUIRED]),
-        activeStatus: row[TRAINING_COLUMNS.ACTIVE_STATUS] || ""
+        certificateRequired: isTruthy(row[TRAINING_COLUMNS.CERTIFICATE_REQUIRED]),
+        status: status,
+        activeStatus: status
       };
     });
 
-  return jsonResponse({ trainings: trainings });
+  return jsonResponse(trainings);
 }
 
 /**
@@ -542,8 +553,10 @@ function readRows(sheetName) {
     return [];
   }
 
-  const headers = values[0];
-  return values.slice(1)
+  const headerRowIndex = findHeaderRowIndex_(values, getRequiredHeadersForSheet_(sheetName));
+  const headers = values[headerRowIndex];
+
+  return values.slice(headerRowIndex + 1)
     .filter(function (row) {
       return row.some(function (cell) {
         return cell !== "";
@@ -595,7 +608,9 @@ function findByColumn(sheetName, columnName, value) {
  * Output: { [headerName]: zeroBasedIndex }
  */
 function getHeaderMap(sheet) {
-  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const values = sheet.getDataRange().getValues();
+  const headerRowIndex = findHeaderRowIndex_(values, []);
+  const headers = values[headerRowIndex] || [];
   const map = {};
 
   headers.forEach(function (header, index) {
@@ -607,12 +622,76 @@ function getHeaderMap(sheet) {
   return map;
 }
 
+function getRequiredHeadersForSheet_(sheetName) {
+  if (sheetName === SHEET_NAMES.TRAININGS) {
+    return [
+      TRAINING_COLUMNS.TRAINING_ID,
+      TRAINING_COLUMNS.TITLE,
+      TRAINING_COLUMNS.ACTIVE_STATUS
+    ];
+  }
+
+  return [];
+}
+
+function findHeaderRowIndex_(values, requiredHeaders) {
+  const required = requiredHeaders || [];
+  const maxScanRows = Math.min(values.length, 20);
+
+  if (!required.length) {
+    return 0;
+  }
+
+  for (let rowIndex = 0; rowIndex < maxScanRows; rowIndex += 1) {
+    const normalizedHeaders = values[rowIndex].map(function (cell) {
+      return String(cell || "").trim();
+    });
+    const hasRequiredHeaders = required.every(function (header) {
+      return normalizedHeaders.indexOf(header) !== -1;
+    });
+
+    if (hasRequiredHeaders) {
+      return rowIndex;
+    }
+  }
+
+  return 0;
+}
+
 function isTruthy(value) {
   if (value === true) {
     return true;
   }
   const normalized = String(value || "").trim().toLowerCase();
   return ["true", "y", "yes", "1", "사용", "활성", "대상", "필수", "재직"].indexOf(normalized) !== -1;
+}
+
+function isActiveTrainingStatus(value) {
+  return String(value || "").trim() === "활성";
+}
+
+function serializeDate_(value) {
+  if (!value) {
+    return "";
+  }
+
+  if (Object.prototype.toString.call(value) === "[object Date]" && !isNaN(value.getTime())) {
+    return Utilities.formatDate(value, Session.getScriptTimeZone(), "yyyy-MM-dd");
+  }
+
+  return String(value).trim();
+}
+
+function serializeTime_(value) {
+  if (!value) {
+    return "";
+  }
+
+  if (Object.prototype.toString.call(value) === "[object Date]" && !isNaN(value.getTime())) {
+    return Utilities.formatDate(value, Session.getScriptTimeZone(), "HH:mm");
+  }
+
+  return String(value).trim();
 }
 
 function isActiveStaff(row) {

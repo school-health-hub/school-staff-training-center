@@ -135,11 +135,11 @@ const iconPaths: Record<IconName, ReactNode> = {
 };
 
 const navItems = [
-  { title: "홈", icon: "home" as IconName, active: true },
-  { title: "교육목록", icon: "list" as IconName },
-  { title: "내 이수현황", icon: "status" as IconName },
-  { title: "이수증 제출", icon: "upload" as IconName },
-  { title: "관리자 메뉴", icon: "admin" as IconName }
+  { title: "홈", href: "/", icon: "home" as IconName, active: true },
+  { title: "교육목록", href: "/trainings", icon: "list" as IconName },
+  { title: "내 이수현황", href: "/my-status", icon: "status" as IconName },
+  { title: "이수증 제출", href: "/certificate", icon: "upload" as IconName },
+  { title: "관리자 메뉴", href: "/admin", icon: "admin" as IconName }
 ];
 
 const featureCards = [
@@ -147,6 +147,7 @@ const featureCards = [
     title: "QR 출석",
     description: "연수장에 QR을 스캔하고 전자서명으로 출석을 완료하세요.",
     action: "출석하기",
+    href: "/attendance",
     icon: "qr" as IconName,
     tone: "blue"
   },
@@ -154,6 +155,7 @@ const featureCards = [
     title: "내 이수현황",
     description: "내가 완료한 교육과 남은 교육을 확인합니다.",
     action: "확인하기",
+    href: "/my-status",
     icon: "status" as IconName,
     tone: "green"
   },
@@ -161,6 +163,7 @@ const featureCards = [
     title: "이수증/전자서명 제출",
     description: "외부 연수 이수증을 업로드하고 서명을 한 곳에서 관리합니다.",
     action: "제출하기",
+    href: "/certificate",
     icon: "signature" as IconName,
     tone: "pink"
   }
@@ -170,19 +173,24 @@ const adminItems = [
   {
     title: "QR 출력",
     description: "교육별 QR을 생성하고 출력합니다.",
+    href: "/admin/qr",
     icon: "print" as IconName
   },
   {
     title: "출석현황",
     description: "교육별 출석 현황을 확인합니다.",
+    href: "/admin/attendance",
     icon: "chart" as IconName
   },
   {
     title: "최종 서명부",
     description: "교육별 최종 서명부를 다운로드합니다.",
+    href: "/admin/final-sheet",
     icon: "file" as IconName
   }
 ];
+
+const APP_BASE_PATH = "/school-staff-training-center";
 
 function Icon({ name }: { name: IconName }) {
   return (
@@ -197,12 +205,35 @@ function isActiveTraining(activeStatus?: string) {
     return false;
   }
 
-  const normalized = activeStatus.toUpperCase();
-  return ["활성", "운영", "운영중", "진행", "진행중", "TRUE", "Y"].some((status) => normalized.includes(status));
+  return activeStatus.trim() === "활성";
 }
 
 function formatTrainingMeta(date?: string, time?: string, location?: string) {
   return [date, time, location].filter(Boolean).join(" · ") || "교육 정보 확인 필요";
+}
+
+function pageHref(path: string) {
+  return path === "/" ? `${APP_BASE_PATH}/` : `${APP_BASE_PATH}${path}/`;
+}
+
+function parseTrainingDate(date?: string) {
+  if (!date) {
+    return Number.POSITIVE_INFINITY;
+  }
+
+  const timestamp = new Date(date).getTime();
+  return Number.isNaN(timestamp) ? Number.POSITIVE_INFINITY : timestamp;
+}
+
+function findNearestActiveTraining(trainings: Training[]) {
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  const today = now.getTime();
+  const futureTrainings = trainings
+    .filter((training) => parseTrainingDate(training.date) >= today)
+    .sort((a, b) => parseTrainingDate(a.date) - parseTrainingDate(b.date));
+
+  return futureTrainings[0] ?? trainings[0];
 }
 
 export default function HomePage() {
@@ -257,10 +288,12 @@ export default function HomePage() {
     };
   }, []);
 
-  const activeTraining = useMemo(
-    () => trainings.find((training) => isActiveTraining(training.activeStatus)) ?? trainings[0],
+  const activeTrainings = useMemo(
+    () => trainings.filter((training) => isActiveTraining(training.status ?? training.activeStatus)),
     [trainings]
   );
+
+  const activeTraining = useMemo(() => findNearestActiveTraining(activeTrainings), [activeTrainings]);
 
   const displaySchoolName = config.schoolName || "학교명 미설정";
 
@@ -304,10 +337,10 @@ export default function HomePage() {
 
         <nav className="top-nav" aria-label="주요 메뉴">
           {navItems.map((item) => (
-            <button className={item.active ? "nav-pill active" : "nav-pill"} key={item.title} type="button">
+            <a className={item.active ? "nav-pill active" : "nav-pill"} href={pageHref(item.href)} key={item.title}>
               <Icon name={item.icon} />
               <span>{item.title}</span>
-            </button>
+            </a>
           ))}
         </nav>
 
@@ -333,11 +366,11 @@ export default function HomePage() {
             {activeTraining ? (
               <>
                 <h2>{activeTraining.title || "교육명 미입력"}</h2>
-                <p>{formatTrainingMeta(activeTraining.date, activeTraining.time, activeTraining.location)}</p>
-                <button className="primary-action" type="button">
+                <p>{formatTrainingMeta(activeTraining.date, activeTraining.time, activeTraining.place ?? activeTraining.location)}</p>
+                <a className="primary-action" href={pageHref("/attendance")}>
                   QR 출석하기
                   <Icon name="chevron" />
-                </button>
+                </a>
               </>
             ) : (
               <>
@@ -360,7 +393,7 @@ export default function HomePage() {
 
         <section className="feature-grid" aria-label="주요 기능">
           {featureCards.map((card) => (
-            <button className={`feature-card tone-${card.tone}`} key={card.title} type="button">
+            <a className={`feature-card tone-${card.tone}`} href={pageHref(card.href)} key={card.title}>
               <span className="feature-icon">
                 <Icon name={card.icon} />
               </span>
@@ -375,7 +408,7 @@ export default function HomePage() {
               <span className="feature-ghost" aria-hidden="true">
                 <Icon name={card.icon} />
               </span>
-            </button>
+            </a>
           ))}
         </section>
 
@@ -393,7 +426,7 @@ export default function HomePage() {
 
           <div className="admin-grid">
             {adminItems.map((item) => (
-              <button className="admin-card" key={item.title} type="button">
+              <a className="admin-card" href={pageHref(item.href)} key={item.title}>
                 <span className="admin-icon">
                   <Icon name={item.icon} />
                 </span>
@@ -402,7 +435,7 @@ export default function HomePage() {
                   <small>{item.description}</small>
                 </span>
                 <Icon name="chevron" />
-              </button>
+              </a>
             ))}
           </div>
         </section>
@@ -413,25 +446,32 @@ export default function HomePage() {
               <h2>교육목록</h2>
               <p>학교에서 등록한 교직원 교육을 확인합니다.</p>
             </div>
-            <button className="ghost-button" type="button">
+            <a className="ghost-button" href={pageHref("/trainings")}>
               전체 교육목록 보기
               <Icon name="chevron" />
-            </button>
+            </a>
           </div>
 
           <div className="training-list">
-            {trainings.length > 0 ? (
-              trainings.map((training) => (
+            {activeTrainings.length > 0 ? (
+              activeTrainings.map((training) => (
                 <article className="training-card" key={training.trainingId || training.title}>
                   <div>
                     <strong>{training.title || "교육명 미입력"}</strong>
-                    <p>{formatTrainingMeta(training.date, training.time, training.location)}</p>
+                    <p>{formatTrainingMeta(training.date, training.time, training.place ?? training.location)}</p>
                   </div>
                   <div className="badge-row">
                     {training.category ? <span>{training.category}</span> : null}
                     <span>{training.qrEnabled ? "QR 사용" : "QR 미사용"}</span>
                     <span>{training.signatureRequired ? "서명 필요" : "서명 없음"}</span>
+                    {training.certificateRequired ? <span>이수증 제출</span> : null}
                   </div>
+                  {training.qrEnabled ? (
+                    <a className="ghost-button" href={pageHref("/attendance")}>
+                      QR 출석하기
+                      <Icon name="chevron" />
+                    </a>
+                  ) : null}
                 </article>
               ))
             ) : (
