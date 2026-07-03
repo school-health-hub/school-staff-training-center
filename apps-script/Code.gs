@@ -125,6 +125,7 @@ const ACTIONS = {
   SAVE_SIGNATURE: "saveSignature",
   CHECK_SIGNATURE_EXISTS: "checkSignatureExists",
   GET_MY_TRAINING_STATUS: "getMyTrainingStatus",
+  GET_TRAINING_ATTENDANCE_STATUS: "getTrainingAttendanceStatus",
   GENERATE_FINAL_ATTENDANCE_SHEET: "generateFinalAttendanceSheet",
   GET_ADMIN_DASHBOARD_DATA: "getAdminDashboardData"
 };
@@ -157,6 +158,10 @@ function doGet(e) {
 
   if (action === ACTIONS.CHECK_SIGNATURE_EXISTS) {
     return checkSignatureExists(e.parameter);
+  }
+
+  if (action === ACTIONS.GET_TRAINING_ATTENDANCE_STATUS) {
+    return getTrainingAttendanceStatus(e.parameter);
   }
 
   return jsonResponse({
@@ -201,6 +206,8 @@ function doPost(e) {
         return checkSignatureExists(payload);
       case ACTIONS.GET_MY_TRAINING_STATUS:
         return getMyTrainingStatus(payload);
+      case ACTIONS.GET_TRAINING_ATTENDANCE_STATUS:
+        return getTrainingAttendanceStatus(payload);
       case ACTIONS.GENERATE_FINAL_ATTENDANCE_SHEET:
         return generateFinalAttendanceSheet(payload);
       case ACTIONS.GET_ADMIN_DASHBOARD_DATA:
@@ -738,6 +745,96 @@ function getMyTrainingStatus(payload) {
 }
 
 /**
+ * Read target attendance/signature status for one training.
+ *
+ * Input: { trainingId: string }
+ * Output: target staff rows with attendance/signature/final status summary.
+ */
+function getTrainingAttendanceStatus(payload) {
+  const trainingId = payload && payload.trainingId ? String(payload.trainingId).trim() : "";
+
+  if (!trainingId) {
+    return errorResponse("교육ID가 필요합니다.", "MISSING_TRAINING_ID");
+  }
+
+  const training = findByColumn(SHEET_NAMES.TRAININGS, TRAINING_COLUMNS.TRAINING_ID, trainingId);
+
+  if (!training) {
+    return errorResponse("교육 정보를 찾을 수 없습니다.", "TRAINING_NOT_FOUND");
+  }
+
+  const normalizedTraining = normalizeTrainingRow_(training);
+  const targets = readRows(SHEET_NAMES.TARGETS).filter(function (row) {
+    return String(row[TARGET_COLUMNS.TRAINING_ID] || "").trim() === trainingId &&
+      isTruthy(row[TARGET_COLUMNS.IS_TARGET]);
+  });
+  const staffRows = readRows(SHEET_NAMES.STAFF);
+  const attendances = readRows(SHEET_NAMES.ATTENDANCE);
+  const signatures = readRows(SHEET_NAMES.SIGNATURES);
+
+  const items = targets.map(function (target) {
+    const staffId = String(target[TARGET_COLUMNS.STAFF_ID] || "").trim();
+    const staff = findInRows_(staffRows, STAFF_COLUMNS.STAFF_ID, staffId);
+    const attendance = attendances.find(function (row) {
+      return String(row[ATTENDANCE_COLUMNS.TRAINING_ID] || "").trim() === trainingId &&
+        String(row[ATTENDANCE_COLUMNS.STAFF_ID] || "").trim() === staffId;
+    });
+    const signature = signatures.find(function (row) {
+      return String(row[SIGNATURE_COLUMNS.TRAINING_ID] || "").trim() === trainingId &&
+        String(row[SIGNATURE_COLUMNS.STAFF_ID] || "").trim() === staffId;
+    });
+    const signatureRequired = normalizedTraining.signatureRequired && !isTruthy(target[TARGET_COLUMNS.SIGNATURE_EXCLUDED]);
+    const attendanceCompleted = Boolean(attendance);
+    const signatureCompleted = Boolean(signature);
+    const finalStatus = calculateAttendanceAdminStatus_({
+      attendanceCompleted: attendanceCompleted,
+      signatureRequired: signatureRequired,
+      signatureCompleted: signatureCompleted
+    });
+
+    return {
+      trainingId: trainingId,
+      staffId: staffId,
+      name: staff ? staff[STAFF_COLUMNS.NAME] || "" : "",
+      department: staff ? staff[STAFF_COLUMNS.DEPARTMENT] || "" : "",
+      position: staff ? staff[STAFF_COLUMNS.POSITION] || "" : "",
+      isTarget: true,
+      required: isTruthy(target[TARGET_COLUMNS.REQUIRED]),
+      attendanceCompleted: attendanceCompleted,
+      attendedAt: attendance ? serializeDateTime_(attendance[ATTENDANCE_COLUMNS.ATTENDED_AT]) : "",
+      signatureRequired: signatureRequired,
+      signatureCompleted: signatureCompleted,
+      signedAt: signature ? serializeDateTime_(signature[SIGNATURE_COLUMNS.SIGNED_AT]) : "",
+      finalStatus: finalStatus.label,
+      statusGroup: finalStatus.group
+    };
+  }).sort(function (a, b) {
+    return adminStatusPriority_(a.statusGroup) - adminStatusPriority_(b.statusGroup) ||
+      String(a.department || "").localeCompare(String(b.department || "")) ||
+      String(a.name || "").localeCompare(String(b.name || ""));
+  });
+
+  const summary = {
+    targetCount: items.length,
+    attendanceCompleted: items.filter(function (item) {
+      return item.attendanceCompleted;
+    }).length,
+    signatureCompleted: items.filter(function (item) {
+      return item.signatureCompleted;
+    }).length,
+    incomplete: items.filter(function (item) {
+      return item.statusGroup !== "completed";
+    }).length
+  };
+
+  return jsonResponse({
+    training: normalizedTraining,
+    summary: summary,
+    items: items
+  });
+}
+
+/**
  * Generate final attendance sheet.
  *
  * Input: { trainingId: string }
@@ -1102,6 +1199,30 @@ function statusPriority_(statusGroup) {
   }
 
   if (statusGroup === "review") {
+    return 1;
+  }
+
+  return 2;
+}
+
+function calculateAttendanceAdminStatus_(state) {
+  if (!state.attendanceCompleted) {
+    return { label: "미출석", group: "absent" };
+  }
+
+  if (state.signatureRequired && !state.signatureCompleted) {
+    return { label: "서명 필요", group: "signature" };
+  }
+
+  return { label: "완료", group: "completed" };
+}
+
+function adminStatusPriority_(statusGroup) {
+  if (statusGroup === "absent") {
+    return 0;
+  }
+
+  if (statusGroup === "signature") {
     return 1;
   }
 

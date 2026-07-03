@@ -132,6 +132,38 @@ export type MyTrainingStatusResult = {
   items: MyTrainingStatusItem[];
 };
 
+export type AdminAttendanceStatusGroup = "completed" | "signature" | "absent";
+
+export type AdminAttendanceStatusItem = {
+  trainingId: string;
+  staffId: string;
+  name: string;
+  department: string;
+  position: string;
+  isTarget: boolean;
+  required: boolean;
+  attendanceCompleted: boolean;
+  attendedAt?: string;
+  signatureRequired: boolean;
+  signatureCompleted: boolean;
+  signedAt?: string;
+  finalStatus: "완료" | "서명 필요" | "미출석";
+  statusGroup: AdminAttendanceStatusGroup;
+};
+
+export type AdminAttendanceStatusSummary = {
+  targetCount: number;
+  attendanceCompleted: number;
+  signatureCompleted: number;
+  incomplete: number;
+};
+
+export type AdminAttendanceStatusResult = {
+  training: Training;
+  summary: AdminAttendanceStatusSummary;
+  items: AdminAttendanceStatusItem[];
+};
+
 export type AppsScriptEnvelope<T> = {
   ok?: boolean;
   data?: T;

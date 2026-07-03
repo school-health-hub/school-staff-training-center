@@ -546,6 +546,87 @@ p {
   justify-content: center;
 }
 
+.admin-attendance-layout {
+  display: grid;
+  gap: 24px;
+}
+
+.admin-attendance-controls {
+  display: grid;
+  gap: 14px;
+}
+
+.filter-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-content: start;
+}
+
+.filter-pill {
+  min-height: 38px;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: var(--radius-button);
+  background: #ffffff;
+  padding: 0 13px;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.filter-pill.active {
+  border-color: rgba(79, 70, 229, 0.35);
+  background: #f4f5ff;
+  color: var(--navy);
+  box-shadow: 0 8px 18px rgba(79, 70, 229, 0.09);
+}
+
+.admin-attendance-table-wrap {
+  display: none;
+  overflow-x: auto;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 18px;
+  background: #ffffff;
+}
+
+.admin-attendance-table {
+  width: 100%;
+  min-width: 780px;
+  border-collapse: collapse;
+}
+
+.admin-attendance-table th,
+.admin-attendance-table td {
+  border-bottom: 1px solid rgba(226, 232, 240, 0.78);
+  padding: 12px;
+  text-align: left;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.admin-attendance-table th {
+  background: #f8fafc;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.admin-attendance-table td {
+  color: var(--navy);
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.admin-attendance-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.admin-attendance-cards {
+  display: grid;
+  gap: 14px;
+}
+
 .today-visual {
   position: absolute;
   right: 18px;
@@ -1001,6 +1082,24 @@ p {
   .admin-qr-layout {
     grid-template-columns: minmax(280px, 0.82fr) minmax(420px, 1.18fr);
     align-items: start;
+  }
+
+  .admin-attendance-layout {
+    grid-template-columns: minmax(280px, 0.72fr) minmax(520px, 1.28fr);
+    align-items: start;
+  }
+
+  .admin-attendance-controls {
+    grid-template-columns: minmax(240px, 1fr) auto;
+    align-items: end;
+  }
+
+  .admin-attendance-table-wrap {
+    display: block;
+  }
+
+  .admin-attendance-cards {
+    display: none;
   }
 
   .footer-bar {

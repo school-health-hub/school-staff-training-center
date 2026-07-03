@@ -1,5 +1,6 @@
 import type {
   AppConfig,
+  AdminAttendanceStatusResult,
   AppsScriptEnvelope,
   DuplicateAttendanceResult,
   MyTrainingStatusResult,
@@ -32,7 +33,8 @@ export type AppsScriptAction =
   | "saveQrAttendance"
   | "checkSignatureExists"
   | "saveSignature"
-  | "getMyTrainingStatus";
+  | "getMyTrainingStatus"
+  | "getTrainingAttendanceStatus";
 
 export type RuntimeConfigResult =
   | {
@@ -343,6 +345,20 @@ export async function getMyTrainingStatus(config: AppConfig, staffId: string): P
   } catch (error) {
     return {
       error: error instanceof Error ? error.message : "내 이수현황을 불러오지 못했습니다."
+    };
+  }
+}
+
+export async function getTrainingAttendanceStatus(
+  config: AppConfig,
+  trainingId: string
+): Promise<{ data?: AdminAttendanceStatusResult; error?: string }> {
+  try {
+    const data = await requestAppsScript<AdminAttendanceStatusResult>(config, "getTrainingAttendanceStatus", { trainingId });
+    return { data };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "교육별 출석현황을 불러오지 못했습니다."
     };
   }
 }
