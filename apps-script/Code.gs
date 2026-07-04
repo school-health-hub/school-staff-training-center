@@ -174,45 +174,50 @@ const ACTIONS = {
  * TODO: Limit GET to health/config only if deployment policy requires stricter behavior.
  */
 function doGet(e) {
-  const action = e && e.parameter ? e.parameter.action : "";
+  try {
+    const action = e && e.parameter ? e.parameter.action : "";
 
-  if (action === ACTIONS.GET_SCHOOL_CONFIG) {
-    return getSchoolConfig();
+    if (action === ACTIONS.GET_SCHOOL_CONFIG) {
+      return getSchoolConfig();
+    }
+
+    if (action === ACTIONS.GET_TRAINING_LIST) {
+      return getTrainingList(e.parameter);
+    }
+
+    if (action === ACTIONS.GET_TRAINING_DETAIL) {
+      return getTrainingDetail(e.parameter);
+    }
+
+    if (action === ACTIONS.GET_STAFF_DETAIL) {
+      return getStaffDetail(e.parameter);
+    }
+
+    if (action === ACTIONS.CHECK_SIGNATURE_EXISTS) {
+      return checkSignatureExists(e.parameter);
+    }
+
+    if (action === ACTIONS.GET_TRAINING_ATTENDANCE_STATUS) {
+      return getTrainingAttendanceStatus(e.parameter);
+    }
+
+    if (action === ACTIONS.GET_FINAL_ATTENDANCE_PREVIEW) {
+      return getFinalAttendancePreview(e.parameter);
+    }
+
+    if (action === ACTIONS.VALIDATE_SETUP) {
+      return validateSetup();
+    }
+
+    return successResponse({
+      service: "School Staff Training Center Apps Script",
+      message: "Apps Script endpoint is ready."
+    });
+  } catch (error) {
+    return errorResponse(errorMessage_(error), errorCode_(error), {
+      detail: error && error.message ? error.message : String(error)
+    });
   }
-
-  if (action === ACTIONS.GET_TRAINING_LIST) {
-    return getTrainingList(e.parameter);
-  }
-
-  if (action === ACTIONS.GET_TRAINING_DETAIL) {
-    return getTrainingDetail(e.parameter);
-  }
-
-  if (action === ACTIONS.GET_STAFF_DETAIL) {
-    return getStaffDetail(e.parameter);
-  }
-
-  if (action === ACTIONS.CHECK_SIGNATURE_EXISTS) {
-    return checkSignatureExists(e.parameter);
-  }
-
-  if (action === ACTIONS.GET_TRAINING_ATTENDANCE_STATUS) {
-    return getTrainingAttendanceStatus(e.parameter);
-  }
-
-  if (action === ACTIONS.GET_FINAL_ATTENDANCE_PREVIEW) {
-    return getFinalAttendancePreview(e.parameter);
-  }
-
-  if (action === ACTIONS.VALIDATE_SETUP) {
-    return validateSetup();
-  }
-
-  return jsonResponse({
-    ok: true,
-    service: "School Staff Training Center Apps Script",
-    message: "Apps Script endpoint is ready."
-  });
 }
 
 /**
@@ -282,7 +287,7 @@ function doPost(e) {
         return errorResponse("지원하지 않는 action입니다.", "UNKNOWN_ACTION");
     }
   } catch (error) {
-    return errorResponse("요청을 처리하지 못했습니다.", "REQUEST_FAILED", {
+    return errorResponse(errorMessage_(error), errorCode_(error), {
       detail: error && error.message ? error.message : String(error)
     });
   }
@@ -1543,6 +1548,21 @@ function jsonResponse(data) {
     ? data
     : { ok: true, data: data };
 
+  if (payload.ok === false && payload.error && !payload.code) {
+    payload.code = payload.error;
+  }
+
+  return jsonOutput_(payload);
+}
+
+function successResponse(data) {
+  return jsonOutput_({
+    ok: true,
+    data: data
+  });
+}
+
+function jsonOutput_(payload) {
   return ContentService
     .createTextOutput(JSON.stringify(payload))
     .setMimeType(ContentService.MimeType.JSON);
@@ -1555,12 +1575,27 @@ function jsonResponse(data) {
  * Output: ContentService JSON error response
  */
 function errorResponse(message, code, extra) {
-  return jsonResponse({
+  return jsonOutput_({
     ok: false,
+    code: code || "ERROR",
     error: code || "ERROR",
     message: message || "요청을 처리하지 못했습니다.",
     data: extra || null
   });
+}
+
+function createAppError_(message, code) {
+  const error = new Error(message || "요청을 처리하지 못했습니다.");
+  error.code = code || "ERROR";
+  return error;
+}
+
+function errorMessage_(error) {
+  return error && error.message ? error.message : "요청을 처리하지 못했습니다.";
+}
+
+function errorCode_(error) {
+  return error && error.code ? error.code : "REQUEST_FAILED";
 }
 
 /**
@@ -1572,9 +1607,29 @@ function errorResponse(message, code, extra) {
 function getSheetByName(name) {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(name);
   if (!sheet) {
-    throw new Error("Sheet not found: " + name);
+    throw createAppError_("필수 시트 `" + name + "`을 찾을 수 없습니다. 허브 시트 구성을 확인해 주세요.", "SHEET_NOT_FOUND");
   }
   return sheet;
+}
+
+function findHeaderRow(sheet, requiredColumns) {
+  const values = sheet.getDataRange().getValues();
+  const headerRowIndex = findHeaderRowIndex_(values, requiredColumns || []);
+
+  if (headerRowIndex === -1) {
+    throw createAppError_(
+      "`" + sheet.getName() + "` 시트에서 필수 헤더를 찾을 수 없습니다: " + (requiredColumns || []).join(", "),
+      "HEADER_ROW_NOT_FOUND"
+    );
+  }
+
+  return {
+    index: headerRowIndex,
+    headers: values[headerRowIndex].map(function (header) {
+      return String(header || "").trim();
+    }),
+    values: values
+  };
 }
 
 /**
@@ -1584,17 +1639,27 @@ function getSheetByName(name) {
  * Output: object array
  */
 function readRows(sheetName) {
-  const sheet = getSheetByName(sheetName);
-  const values = sheet.getDataRange().getValues();
+  return readTable(sheetName, getRequiredHeadersForSheet_(sheetName));
+}
 
-  if (values.length < 2) {
-    return [];
+function readTable(sheetName, requiredColumns) {
+  const sheet = getSheetByName(sheetName);
+  const table = findHeaderRow(sheet, requiredColumns || []);
+  const headers = table.headers;
+  const missingColumns = (requiredColumns || []).filter(function (column) {
+    return !headers.some(function (header) {
+      return headerMatchesColumn_(header, column);
+    });
+  });
+
+  if (missingColumns.length) {
+    throw createAppError_(
+      "`" + sheetName + "` 시트에 필수 컬럼이 없습니다: " + missingColumns.join(", "),
+      "REQUIRED_COLUMNS_MISSING"
+    );
   }
 
-  const headerRowIndex = findHeaderRowIndex_(values, getRequiredHeadersForSheet_(sheetName));
-  const headers = values[headerRowIndex];
-
-  return values.slice(headerRowIndex + 1)
+  return table.values.slice(table.index + 1)
     .filter(function (row) {
       return row.some(function (cell) {
         return cell !== "";
@@ -1607,7 +1672,10 @@ function readRows(sheetName) {
           item[String(header)] = row[index];
         }
       });
-      return item;
+      return normalizeRow(item);
+    })
+    .filter(function (row) {
+      return !isExampleRow_(sheetName, row);
     });
 }
 
@@ -1619,11 +1687,10 @@ function readRows(sheetName) {
  */
 function appendRow(sheetName, row) {
   const sheet = getSheetByName(sheetName);
-  const sheetValues = sheet.getDataRange().getValues();
-  const headerRowIndex = findHeaderRowIndex_(sheetValues, getRequiredHeadersForSheet_(sheetName));
-  const headers = sheetValues[headerRowIndex] || sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const table = findHeaderRow(sheet, getRequiredHeadersForSheet_(sheetName));
+  const headers = table.headers;
   const rowValues = headers.map(function (header) {
-    return row[String(header)] !== undefined ? row[String(header)] : "";
+    return getRowValueForHeader_(row, header);
   });
 
   sheet.appendRow(rowValues);
@@ -1647,15 +1714,15 @@ function findByColumn(sheetName, columnName, value) {
  * Input: Sheet object
  * Output: { [headerName]: zeroBasedIndex }
  */
-function getHeaderMap(sheet) {
+function getHeaderMap(sheet, requiredColumns) {
   const values = sheet.getDataRange().getValues();
-  const headerRowIndex = findHeaderRowIndex_(values, []);
+  const headerRowIndex = findHeaderRowIndex_(values, requiredColumns || getRequiredHeadersForSheet_(sheet.getName()));
   const headers = values[headerRowIndex] || [];
   const map = {};
 
   headers.forEach(function (header, index) {
     if (header) {
-      map[String(header)] = index;
+      map[canonicalHeader_(header)] = index;
     }
   });
 
@@ -1733,15 +1800,17 @@ function findHeaderRowIndex_(values, requiredHeaders) {
   const maxScanRows = Math.min(values.length, 20);
 
   if (!required.length) {
-    return 0;
+    return values.length ? 0 : -1;
   }
 
   for (let rowIndex = 0; rowIndex < maxScanRows; rowIndex += 1) {
     const normalizedHeaders = values[rowIndex].map(function (cell) {
-      return String(cell || "").trim();
+      return normalizeHeader_(cell);
     });
     const hasRequiredHeaders = required.every(function (header) {
-      return normalizedHeaders.indexOf(header) !== -1;
+      return normalizedHeaders.some(function (normalizedHeader) {
+        return headerMatchesColumn_(normalizedHeader, header);
+      });
     });
 
     if (hasRequiredHeaders) {
@@ -1749,34 +1818,185 @@ function findHeaderRowIndex_(values, requiredHeaders) {
     }
   }
 
-  return 0;
+  return -1;
 }
 
 function findFirstHeaderIndex_(headers, candidates) {
   const normalizedHeaders = headers.map(function (header) {
-    return String(header || "").trim();
+    return normalizeHeader_(header);
   });
 
   for (let index = 0; index < candidates.length; index += 1) {
-    const candidateIndex = normalizedHeaders.indexOf(candidates[index]);
-    if (candidateIndex !== -1) {
-      return candidateIndex;
+    for (let headerIndex = 0; headerIndex < normalizedHeaders.length; headerIndex += 1) {
+      if (headerMatchesColumn_(normalizedHeaders[headerIndex], candidates[index])) {
+        return headerIndex;
+      }
     }
   }
 
   return -1;
 }
 
-function isTruthy(value) {
+function normalizeHeader_(value) {
+  return String(value || "").trim();
+}
+
+function columnAliases_() {
+  const aliases = {};
+
+  aliases["설정키"] = ["설정 Key", "설정명", "항목", "key", "Key"];
+  aliases["설정값"] = ["값", "value", "Value"];
+
+  aliases[TRAINING_COLUMNS.TRAINING_ID] = ["교육 ID", "연수ID", "연수 ID", "trainingId"];
+  aliases[TRAINING_COLUMNS.TITLE] = ["교육명", "연수명", "title"];
+  aliases[TRAINING_COLUMNS.DATE] = ["교육일", "연수일자", "date"];
+  aliases[TRAINING_COLUMNS.TIME] = ["교육 시간", "연수시간", "time"];
+  aliases[TRAINING_COLUMNS.LOCATION] = ["장소", "교육장소", "place", "location"];
+  aliases[TRAINING_COLUMNS.DEPARTMENT] = ["담당 부서", "담당부서", "부서", "department"];
+  aliases[TRAINING_COLUMNS.QR_ENABLED] = ["QR 사용 여부", "QR사용", "qrEnabled"];
+  aliases[TRAINING_COLUMNS.SIGNATURE_REQUIRED] = ["전자서명 필요 여부", "서명필요여부", "signatureRequired"];
+  aliases[TRAINING_COLUMNS.CERTIFICATE_REQUIRED] = ["이수증 제출 필요 여부", "이수증필요여부", "certificateRequired"];
+  aliases[TRAINING_COLUMNS.ACTIVE_STATUS] = ["활성 상태", "상태", "status", "activeStatus"];
+
+  aliases[STAFF_COLUMNS.STAFF_ID] = ["교직원 ID", "직원ID", "staffId"];
+  aliases[STAFF_COLUMNS.NAME] = ["이름", "교직원명", "name"];
+  aliases[STAFF_COLUMNS.DEPARTMENT] = ["소속부서", "소속", "부서명", "department"];
+  aliases[STAFF_COLUMNS.POSITION] = ["직급", "직책", "position"];
+  aliases[STAFF_COLUMNS.AUTH_CODE] = ["인증 코드", "본인인증코드", "authCode"];
+  aliases[STAFF_COLUMNS.EMPLOYMENT_STATUS] = ["재직 상태", "근무상태", "employmentStatus"];
+  aliases[STAFF_COLUMNS.ROLE] = ["역할", "role"];
+
+  aliases[TARGET_COLUMNS.IS_TARGET] = ["대상 여부", "대상", "isTarget"];
+  aliases[TARGET_COLUMNS.REQUIRED] = ["필수 여부", "필수", "required"];
+  aliases[TARGET_COLUMNS.SIGNATURE_EXCLUDED] = ["서명 제외 여부", "서명제외", "signatureExcluded"];
+
+  aliases[CERTIFICATE_COLUMNS.FILE_URL] = ["이수증파일URL", "파일 URL", "fileUrl"];
+  aliases[CERTIFICATE_COLUMNS.SUBMIT_STATUS] = ["처리상태", "상태", "submitStatus"];
+  aliases[CERTIFICATE_COLUMNS.APPROVAL_STATUS] = ["승인 상태", "확인상태", "approvalStatus"];
+  aliases[CERTIFICATE_COLUMNS.COMPLETED_DATE] = ["이수 일자", "수료일자", "completedDate"];
+  aliases[CERTIFICATE_COLUMNS.ISSUER] = ["기관", "교육기관", "issuer"];
+
+  return aliases;
+}
+
+function getHeaderAliases_(columnName) {
+  return columnAliases_()[columnName] || [];
+}
+
+function headerMatchesColumn_(header, columnName) {
+  const normalizedHeader = normalizeHeader_(header);
+  const candidates = [columnName].concat(getHeaderAliases_(columnName)).map(normalizeHeader_);
+  return candidates.indexOf(normalizedHeader) !== -1;
+}
+
+function canonicalHeader_(header) {
+  const normalizedHeader = normalizeHeader_(header);
+  const aliases = columnAliases_();
+  const canonicalColumns = Object.keys(aliases);
+
+  for (let index = 0; index < canonicalColumns.length; index += 1) {
+    const columnName = canonicalColumns[index];
+    if (headerMatchesColumn_(normalizedHeader, columnName)) {
+      return columnName;
+    }
+  }
+
+  return normalizedHeader;
+}
+
+function getRowValueForHeader_(row, header) {
+  const normalizedHeader = normalizeHeader_(header);
+  const canonical = canonicalHeader_(normalizedHeader);
+
+  if (row[normalizedHeader] !== undefined) {
+    return row[normalizedHeader];
+  }
+
+  if (row[canonical] !== undefined) {
+    return row[canonical];
+  }
+
+  const aliases = getHeaderAliases_(canonical);
+  for (let index = 0; index < aliases.length; index += 1) {
+    if (row[aliases[index]] !== undefined) {
+      return row[aliases[index]];
+    }
+  }
+
+  return "";
+}
+
+function normalizeCell_(value) {
+  return typeof value === "string" ? value.trim() : value;
+}
+
+function normalizeRow(row) {
+  const normalized = {};
+
+  Object.keys(row || {}).forEach(function (key) {
+    normalized[canonicalHeader_(key)] = normalizeCell_(row[key]);
+  });
+
+  return normalized;
+}
+
+function isExampleRow_(sheetName, row) {
+  if (sheetName === SHEET_NAMES.CONFIG) {
+    return false;
+  }
+
+  const values = Object.keys(row || {}).map(function (key) {
+    return String(row[key] || "").trim();
+  }).filter(Boolean);
+
+  if (!values.length) {
+    return false;
+  }
+
+  const joined = values.join(" ");
+  const hasExampleMarker = /예시|샘플|sample|YOUR_|YOUR DEPLOYMENT ID|테스트용/i.test(joined);
+  const hasRealLikeId = values.some(function (value) {
+    return /^(TRN|STF|ATT|SIG|CERT|FINAL)-/i.test(value);
+  });
+
+  return hasExampleMarker && !hasRealLikeId;
+}
+
+function normalizeBoolean(value) {
   if (value === true) {
     return true;
   }
+
+  if (value === false || value === null || value === undefined) {
+    return false;
+  }
+
   const normalized = String(value || "").trim().toLowerCase();
-  return ["true", "y", "yes", "1", "사용", "활성", "대상", "필수", "재직"].indexOf(normalized) !== -1;
+  return [
+    "true",
+    "y",
+    "yes",
+    "1",
+    "사용",
+    "사용함",
+    "활성",
+    "대상",
+    "필수",
+    "필요",
+    "재직",
+    "완료",
+    "제출",
+    "제출완료"
+  ].indexOf(normalized) !== -1;
+}
+
+function isTruthy(value) {
+  return normalizeBoolean(value);
 }
 
 function isActiveTrainingStatus(value) {
-  return String(value || "").trim() === "활성";
+  const normalized = String(value || "").trim().toLowerCase();
+  return normalized === "활성" || normalized === "active" || normalizeBoolean(value);
 }
 
 function normalizeTrainingRow_(row) {
@@ -2199,7 +2419,7 @@ function normalizeCertificateMimeType_(fileName, mimeType) {
   return "";
 }
 
-function serializeDate_(value) {
+function normalizeDate(value) {
   if (!value) {
     return "";
   }
@@ -2208,10 +2428,17 @@ function serializeDate_(value) {
     return Utilities.formatDate(value, Session.getScriptTimeZone(), "yyyy-MM-dd");
   }
 
-  return String(value).trim();
+  const text = String(value).trim();
+  const parsed = new Date(text);
+
+  if (/^\d{4}[./-]\d{1,2}[./-]\d{1,2}$/.test(text) && !Number.isNaN(parsed.getTime())) {
+    return Utilities.formatDate(parsed, Session.getScriptTimeZone(), "yyyy-MM-dd");
+  }
+
+  return text;
 }
 
-function serializeTime_(value) {
+function normalizeTime(value) {
   if (!value) {
     return "";
   }
@@ -2221,6 +2448,14 @@ function serializeTime_(value) {
   }
 
   return String(value).trim();
+}
+
+function serializeDate_(value) {
+  return normalizeDate(value);
+}
+
+function serializeTime_(value) {
+  return normalizeTime(value);
 }
 
 function serializeDateTime_(value) {
