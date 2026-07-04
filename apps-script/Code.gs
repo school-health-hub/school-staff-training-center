@@ -301,9 +301,13 @@ function doPost(e) {
  * TODO: Decide whether manager contact should be returned to all users or admin only.
  */
 function getSchoolConfig() {
+  return jsonResponse(getPublicSchoolConfig_());
+}
+
+function getPublicSchoolConfig_() {
   const config = getConfigMap_();
 
-  return jsonResponse({
+  return {
     schoolName: config[CONFIG_KEYS.SCHOOL_NAME] || "",
     centerName: config[CONFIG_KEYS.CENTER_NAME] || "학교 교직원 교육센터",
     logoUrl: config[CONFIG_KEYS.SCHOOL_LOGO_URL] || "",
@@ -321,7 +325,7 @@ function getSchoolConfig() {
     finalRosterFolderId: config[CONFIG_KEYS.FINAL_ROSTER_FOLDER_ID] || config.finalRosterFolderId || "",
     activeSemester: config[CONFIG_KEYS.ACTIVE_SEMESTER] || config.activeSemester || "",
     privacyNotice: config[CONFIG_KEYS.PRIVACY_NOTICE] || ""
-  });
+  };
 }
 
 /**

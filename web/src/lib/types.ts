@@ -16,8 +16,11 @@ export type SchoolConfig = {
   certificateFolderId?: string;
   finalRosterFolderId?: string;
   privacyNotice?: string;
-  adminCode?: string;
   activeSemester?: string;
+};
+
+export type SchoolConfigUpdate = Partial<SchoolConfig> & {
+  adminCode?: string;
 };
 
 export type AppConfig = {

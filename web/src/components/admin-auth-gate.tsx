@@ -1,11 +1,12 @@
 "use client";
 
 import { loadAppConfig, verifyAdminCode } from "@/lib/apps-script";
+import { clearAdminSession, isAdminSessionVerified, markAdminSessionVerified } from "@/lib/admin-auth";
+import { getBasePath } from "@/lib/paths";
 import type { AppConfig } from "@/lib/types";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 
-const APP_BASE_PATH = "/school-staff-training-center";
-const ADMIN_SESSION_KEY = "school-health-hub-admin-verified";
+const APP_BASE_PATH = getBasePath();
 
 function ShieldIcon() {
   return (
@@ -14,12 +15,6 @@ function ShieldIcon() {
       <path d="m9 12 2 2 4-4" />
     </svg>
   );
-}
-
-export function clearAdminSession() {
-  if (typeof window !== "undefined") {
-    window.sessionStorage.removeItem(ADMIN_SESSION_KEY);
-  }
 }
 
 export function AdminLogoutButton() {
@@ -46,7 +41,7 @@ export function AdminAuthGate({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     async function loadRuntimeConfig() {
-      const stored = window.sessionStorage.getItem(ADMIN_SESSION_KEY) === "true";
+      const stored = isAdminSessionVerified();
       setAuthenticated(stored);
 
       const result = await loadAppConfig();
@@ -87,7 +82,7 @@ export function AdminAuthGate({ children }: { children: ReactNode }) {
       return;
     }
 
-    window.sessionStorage.setItem(ADMIN_SESSION_KEY, "true");
+    markAdminSessionVerified();
     setAuthenticated(true);
     setAdminCode("");
   }

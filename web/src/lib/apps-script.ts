@@ -12,6 +12,7 @@ import type {
   SaveAttendanceResult,
   SaveSignatureResult,
   SchoolConfig,
+  SchoolConfigUpdate,
   SetupValidationResult,
   SignatureExistsResult,
   Staff,
@@ -85,6 +86,12 @@ function mergeSchoolConfig(data: Partial<SchoolConfig>): SchoolConfig {
       Object.entries(data).filter(([, value]) => (typeof value === "string" ? value.trim().length > 0 : value !== undefined))
     )
   };
+}
+
+function stripSensitiveSchoolConfig(data: Partial<SchoolConfig> & { adminCode?: unknown }): Partial<SchoolConfig> {
+  const safeData = { ...data };
+  delete safeData.adminCode;
+  return safeData;
 }
 
 function themeToColors(theme: AppConfig["theme"]): Pick<SchoolConfig, "primaryColor" | "secondaryColor"> {
@@ -215,7 +222,7 @@ async function requestAppsScript<T>(config: AppConfig, action: AppsScriptAction,
 export async function getSchoolConfig(config: AppConfig): Promise<{ data: SchoolConfig; error?: string }> {
   try {
     const data = await requestAppsScript<Partial<SchoolConfig>>(config, "getSchoolConfig");
-    return { data: mergeSchoolConfig({ ...data, ...schoolConfigOverridesFromAppConfig(config) }) };
+    return { data: mergeSchoolConfig({ ...stripSensitiveSchoolConfig(data), ...schoolConfigOverridesFromAppConfig(config) }) };
   } catch (error) {
     return {
       data: schoolConfigFromAppConfig(config),
@@ -226,11 +233,11 @@ export async function getSchoolConfig(config: AppConfig): Promise<{ data: School
 
 export async function updateSchoolConfig(
   config: AppConfig,
-  settings: Partial<SchoolConfig>
+  settings: SchoolConfigUpdate
 ): Promise<{ data?: SchoolConfig; error?: string }> {
   try {
     const data = await requestAppsScript<Partial<SchoolConfig>>(config, "updateSchoolConfig", { settings });
-    return { data: mergeSchoolConfig({ ...data, ...schoolConfigOverridesFromAppConfig(config) }) };
+    return { data: mergeSchoolConfig({ ...stripSensitiveSchoolConfig(data), ...schoolConfigOverridesFromAppConfig(config) }) };
   } catch (error) {
     return {
       error: error instanceof Error ? error.message : "학교설정을 저장하지 못했습니다."

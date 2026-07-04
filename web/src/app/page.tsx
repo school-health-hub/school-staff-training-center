@@ -138,8 +138,7 @@ const navItems = [
   { title: "홈", href: "/", icon: "home" as IconName, active: true },
   { title: "교육목록", href: "/trainings", icon: "list" as IconName },
   { title: "내 이수현황", href: "/my-status", icon: "status" as IconName },
-  { title: "이수증 제출", href: "/certificate", icon: "upload" as IconName },
-  { title: "관리자 메뉴", href: "/admin", icon: "admin" as IconName }
+  { title: "이수증 제출", href: "/certificate", icon: "upload" as IconName }
 ];
 
 const featureCards = [
@@ -443,7 +442,10 @@ export default function HomePage() {
                   <Icon name={item.icon} />
                 </span>
                 <span>
-                  <strong>{item.title}</strong>
+                  <strong>
+                    {item.title}
+                    <span className="admin-lock-badge">관리자 전용</span>
+                  </strong>
                   <small>{item.description}</small>
                 </span>
                 <Icon name="chevron" />

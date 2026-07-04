@@ -1255,6 +1255,19 @@ p {
   font-weight: 900;
 }
 
+.admin-lock-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 8px;
+  border-radius: 999px;
+  background: #eef4ff;
+  padding: 3px 8px;
+  color: var(--primary);
+  font-size: 11px;
+  font-weight: 900;
+  vertical-align: middle;
+}
+
 .admin-card small {
   margin-top: 5px;
   color: var(--muted);

@@ -2,7 +2,7 @@
 
 import { AdminAuthGate, AdminLogoutButton } from "@/components/admin-auth-gate";
 import { getSchoolConfig, loadAppConfig, updateSchoolConfig } from "@/lib/apps-script";
-import type { AppConfig, SchoolConfig } from "@/lib/types";
+import type { AppConfig, SchoolConfig, SchoolConfigUpdate } from "@/lib/types";
 import { useEffect, useMemo, useState, type ChangeEvent, type CSSProperties, type FormEvent } from "react";
 
 const APP_BASE_PATH = "/school-staff-training-center";
@@ -55,13 +55,13 @@ function formFromSchoolConfig(config: SchoolConfig): SettingsForm {
     certificateFolderId: config.certificateFolderId ?? "",
     finalRosterFolderId: config.finalRosterFolderId ?? "",
     privacyNotice: config.privacyNotice ?? "",
-    adminCode: config.adminCode ?? "",
+    adminCode: "",
     activeSemester: config.activeSemester ?? ""
   };
 }
 
-function payloadFromForm(form: SettingsForm): Partial<SchoolConfig> {
-  const payload: Partial<SchoolConfig> = {
+function payloadFromForm(form: SettingsForm): SchoolConfigUpdate {
+  const payload: SchoolConfigUpdate = {
     schoolName: form.schoolName,
     centerName: form.centerName,
     logoUrl: form.logoUrl,
