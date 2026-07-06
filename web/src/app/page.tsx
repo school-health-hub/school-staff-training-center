@@ -168,39 +168,6 @@ const featureCards = [
   }
 ];
 
-const adminItems = [
-  {
-    title: "QR 출력",
-    description: "교육별 QR을 생성하고 출력합니다.",
-    href: "/admin/qr",
-    icon: "print" as IconName
-  },
-  {
-    title: "출석현황",
-    description: "교육별 출석 현황을 확인합니다.",
-    href: "/admin/attendance",
-    icon: "chart" as IconName
-  },
-  {
-    title: "최종 서명부",
-    description: "교육별 최종 서명부를 다운로드합니다.",
-    href: "/admin/final-sheet",
-    icon: "file" as IconName
-  },
-  {
-    title: "교직원 명단",
-    description: "교직원 정보를 확인하고 재직상태를 관리합니다.",
-    href: "/admin/staff",
-    icon: "shield" as IconName
-  },
-  {
-    title: "설정 관리",
-    description: "학교 기본정보, 브랜드, 저장 폴더 설정을 관리합니다.",
-    href: "/admin/settings",
-    icon: "admin" as IconName
-  }
-];
-
 const APP_BASE_PATH = "/school-staff-training-center";
 
 function Icon({ name }: { name: IconName }) {
@@ -330,10 +297,10 @@ export default function HomePage() {
           </div>
 
           <div className="header-actions">
-            <button className="notice-button" type="button">
-              <Icon name="bell" />
-              <span>알림</span>
-            </button>
+            <a className="admin-login-button" href={pageHref("/admin")}>
+              <Icon name="shield" />
+              <span>관리자 로그인</span>
+            </a>
             <div className="user-card" aria-label="사용자 정보">
               <div className="user-avatar" aria-hidden="true">
                 <Icon name="home" />
@@ -421,37 +388,6 @@ export default function HomePage() {
               </span>
             </a>
           ))}
-        </section>
-
-        <section className="admin-section" aria-label="관리자 메뉴">
-          <div className="section-head">
-            <div>
-              <div className="section-kicker">
-                <Icon name="admin" />
-                <span>관리자 메뉴</span>
-              </div>
-              <p>QR 출력, 출석현황, 서명부 생성 작업을 관리합니다.</p>
-            </div>
-            <span className="permission-note">관리자 권한이 있는 사용자에게만 표시됩니다.</span>
-          </div>
-
-          <div className="admin-grid">
-            {adminItems.map((item) => (
-              <a className="admin-card" href={pageHref(item.href)} key={item.title}>
-                <span className="admin-icon">
-                  <Icon name={item.icon} />
-                </span>
-                <span>
-                  <strong>
-                    {item.title}
-                    <span className="admin-lock-badge">관리자 전용</span>
-                  </strong>
-                  <small>{item.description}</small>
-                </span>
-                <Icon name="chevron" />
-              </a>
-            ))}
-          </div>
         </section>
 
         <section className="training-section" aria-label="교육목록">

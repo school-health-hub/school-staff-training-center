@@ -93,31 +93,15 @@ export function AdminAuthGate({ children }: { children: ReactNode }) {
 
   return (
     <main className="page">
-      <div className="dashboard-shell">
-        <div className="route-actions">
-          <span className="page-toolbar-title">관리자 인증</span>
-          <a className="ghost-button" href={`${APP_BASE_PATH}/`}>
-            홈으로
-          </a>
-        </div>
-
-        <section className="today-card" aria-label="관리자 인증">
-          <div className="today-copy">
-            <div className="section-kicker">
-              <ShieldIcon />
-              <span>관리자 인증</span>
-            </div>
-            <h1>관리자 코드를 입력해주세요.</h1>
-            <p>관리자 기능은 학교 담당자만 사용할 수 있습니다.</p>
+      <div className="admin-auth-shell">
+        <article className="admin-auth-card" aria-label="관리자 인증">
+          <div className="admin-auth-icon" aria-hidden="true">
+            <ShieldIcon />
           </div>
-        </section>
-
-        <section className="training-section" aria-label="관리자 코드 입력">
-          <div className="section-head">
-            <div>
-              <h2>관리자 코드</h2>
-              <p>00_학교설정 탭의 adminCode 값과 비교합니다. 코드는 이 브라우저에 저장되지 않습니다.</p>
-            </div>
+          <div className="admin-auth-copy">
+            <span>ADMIN ACCESS</span>
+            <h1>관리자 인증</h1>
+            <p>관리자 전용 화면입니다. 학교설정의 관리자 코드를 입력해 주세요.</p>
           </div>
 
           {message ? <div className={messageTone === "error" ? "soft-alert danger" : "soft-alert"}>{loading ? "설정을 불러오는 중입니다." : message}</div> : null}
@@ -131,7 +115,10 @@ export function AdminAuthGate({ children }: { children: ReactNode }) {
               {checking ? "확인 중" : "관리자 화면 열기"}
             </button>
           </form>
-        </section>
+          <a className="ghost-button admin-auth-home" href={`${APP_BASE_PATH}/`}>
+            홈으로 돌아가기
+          </a>
+        </article>
       </div>
     </main>
   );

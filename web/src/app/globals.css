@@ -177,10 +177,30 @@ p {
 .notice-button,
 .user-card,
 .nav-pill,
+.admin-login-button,
 .ghost-button,
 .primary-action,
 .feature-action {
   border-radius: var(--radius-button);
+}
+
+.admin-login-button {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 8px;
+  background: var(--primary);
+  padding: 0 16px;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 900;
+  box-shadow: 0 14px 28px rgba(31, 42, 68, 0.18);
+  white-space: nowrap;
+}
+
+.admin-login-button .icon {
+  width: 18px;
+  height: 18px;
 }
 
 .notice-button {
@@ -1200,6 +1220,64 @@ p {
   font-weight: 850;
 }
 
+.admin-auth-shell {
+  display: grid;
+  min-height: calc(100vh - 48px);
+  place-items: center;
+}
+
+.admin-auth-card {
+  display: grid;
+  width: min(100%, 520px);
+  gap: 18px;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.94);
+  padding: 28px;
+  box-shadow: 0 24px 70px rgba(38, 57, 100, 0.12);
+}
+
+.admin-auth-icon {
+  display: grid;
+  width: 56px;
+  height: 56px;
+  place-items: center;
+  border-radius: 18px;
+  background: #eef4ff;
+  color: var(--primary);
+}
+
+.admin-auth-copy {
+  display: grid;
+  gap: 8px;
+}
+
+.admin-auth-copy span {
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+}
+
+.admin-auth-copy h1 {
+  color: var(--navy);
+  font-size: clamp(28px, 6vw, 36px);
+  font-weight: 950;
+  letter-spacing: 0;
+  line-height: 1.1;
+}
+
+.admin-auth-copy p {
+  color: #475569;
+  font-size: 14px;
+  font-weight: 750;
+  line-height: 1.65;
+}
+
+.admin-auth-home {
+  justify-self: start;
+}
+
 .settings-form {
   display: grid;
   gap: 18px;
@@ -1253,19 +1331,6 @@ p {
   color: var(--navy);
   font-size: 15px;
   font-weight: 900;
-}
-
-.admin-lock-badge {
-  display: inline-flex;
-  align-items: center;
-  margin-left: 8px;
-  border-radius: 999px;
-  background: #eef4ff;
-  padding: 3px 8px;
-  color: var(--primary);
-  font-size: 11px;
-  font-weight: 900;
-  vertical-align: middle;
 }
 
 .admin-card small {
