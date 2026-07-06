@@ -129,6 +129,7 @@ export type SaveSignatureResult = {
   signedAt: string;
   fileUrl?: string;
   fileId?: string;
+  bundleId?: string;
   saveStatus: string;
 };
 
@@ -185,6 +186,7 @@ export type BulkSignatureResult = {
   signedAt?: string;
   fileUrl?: string;
   fileId?: string;
+  bundleId?: string;
 };
 
 export type MyTrainingStatusGroup = "completed" | "incomplete" | "review";

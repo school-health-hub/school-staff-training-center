@@ -103,10 +103,12 @@ const SIGNATURE = {
   STAFF_ID: "교직원ID",
   STAFF_NAME: "성명",
   DEPARTMENT: "부서",
+  POSITION: "직책",
   SIGNED_AT: "서명일시",
   FILE_URL: "서명파일URL",
   FILE_ID: "서명파일ID",
   STATUS: "저장상태",
+  BUNDLE_ID: "묶음ID",
   NOTE: "비고"
 };
 
@@ -639,6 +641,7 @@ function saveBulkSignature(payload) {
   if (!folderId) return errorResponse("전자서명 저장 폴더가 설정되지 않았습니다. 관리자에게 문의해 주세요.", "SIGNATURE_FOLDER_NOT_CONFIGURED");
   var signedAt = new Date();
   var fileSignatureId = generateId_("SIG");
+  var bundleId = rowsToSave.length > 1 ? generateId_("BUNDLE") : fileSignatureId;
   var file = DriveApp.getFolderById(folderId).createFile(base64Blob_(signatureImage, "image/png", fileSignatureId + ".png"));
   var fileUrl = file.getUrl();
   var fileId = file.getId();
@@ -652,10 +655,12 @@ function saveBulkSignature(payload) {
     row[SIGNATURE.STAFF_ID] = staffId;
     row[SIGNATURE.STAFF_NAME] = normalizedStaff.name;
     row[SIGNATURE.DEPARTMENT] = normalizedStaff.department;
+    row[SIGNATURE.POSITION] = normalizedStaff.position || "";
     row[SIGNATURE.SIGNED_AT] = signedAt;
     row[SIGNATURE.FILE_URL] = fileUrl;
     row[SIGNATURE.FILE_ID] = fileId;
     row[SIGNATURE.STATUS] = "완료";
+    row[SIGNATURE.BUNDLE_ID] = bundleId;
     row[SIGNATURE.NOTE] = rowsToSave.length > 1 ? note : "";
     appendRowByHeader(SHEETS.SIGNATURES, row);
     return {
@@ -666,6 +671,7 @@ function saveBulkSignature(payload) {
       signedAt: normalizeDateTime_(signedAt),
       fileUrl: fileUrl,
       fileId: fileId,
+      bundleId: bundleId,
       saveStatus: "완료"
     };
   });
@@ -678,7 +684,8 @@ function saveBulkSignature(payload) {
     staff: normalizedStaff,
     signedAt: normalizeDateTime_(signedAt),
     fileUrl: fileUrl,
-    fileId: fileId
+    fileId: fileId,
+    bundleId: bundleId
   });
 }
 
@@ -1145,6 +1152,9 @@ function aliases_() {
   aliases[STAFF.STATUS] = ["상태", "재직상태", "employmentStatus"];
   aliases[ATTENDANCE.DEPARTMENT] = ["소속부서", "부서", "department"];
   aliases[ATTENDANCE.POSITION] = ["직위", "직책", "position"];
+  aliases[SIGNATURE.DEPARTMENT] = ["소속부서", "부서", "department"];
+  aliases[SIGNATURE.POSITION] = ["직위", "직책", "position"];
+  aliases[SIGNATURE.BUNDLE_ID] = ["묶음 ID", "일괄서명ID", "bundleId", "bundleID"];
   aliases[TARGET.IS_TARGET] = ["대상", "대상여부", "isTarget"];
   aliases[TARGET.REQUIRED] = ["필수", "필수여부", "required"];
   aliases[TARGET.SIGNATURE_EXCLUDED] = ["서명제외", "서명제외여부", "signatureExcluded"];
