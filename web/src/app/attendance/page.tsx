@@ -3,11 +3,11 @@
 import {
   checkDuplicateAttendance,
   checkTrainingTarget,
+  getStaffByNameDept,
   getTrainingDetail,
   getTrainingList,
   loadAppConfig,
-  saveQrAttendance,
-  verifyStaff
+  saveQrAttendance
 } from "@/lib/apps-script";
 import type { AppConfig, DuplicateAttendanceResult, SaveAttendanceResult, Staff, Training, TrainingTargetResult } from "@/lib/types";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
@@ -37,20 +37,24 @@ function QrIcon() {
   );
 }
 
-function formatTrainingMeta(training?: Training) {
-  if (!training) {
-    return "교육 정보를 확인해 주세요.";
-  }
-
-  return [training.date, training.time, training.place ?? training.location, training.department].filter(Boolean).join(" · ");
-}
-
 function getTrainingIdFromUrl() {
   if (typeof window === "undefined") {
     return "";
   }
 
   return new URLSearchParams(window.location.search).get("trainingId")?.trim() ?? "";
+}
+
+function pageHref(path: string) {
+  return path === "/" ? `${APP_BASE_PATH}/` : `${APP_BASE_PATH}${path}/`;
+}
+
+function attendanceUrl(trainingId: string) {
+  return `${APP_BASE_PATH}/attendance?${new URLSearchParams({ trainingId }).toString()}`;
+}
+
+function signatureUrl(trainingId: string, staffId: string) {
+  return `${APP_BASE_PATH}/signature?${new URLSearchParams({ trainingId, staffId }).toString()}`;
 }
 
 function isActiveTraining(training?: Training) {
@@ -75,25 +79,15 @@ function trainingTimingLabel(training: Training) {
   today.setHours(0, 0, 0, 0);
   const trainingDate = parseTrainingDate(training.date);
 
-  if (trainingDate <= today.getTime()) {
-    return "진행중";
+  return trainingDate <= today.getTime() ? "진행중" : "예정";
+}
+
+function formatTrainingMeta(training?: Training) {
+  if (!training) {
+    return "교육 정보를 확인해 주세요.";
   }
 
-  return "예정";
-}
-
-function attendanceUrl(trainingId: string) {
-  const params = new URLSearchParams({ trainingId });
-  return `${APP_BASE_PATH}/attendance?${params.toString()}`;
-}
-
-function signatureUrl(trainingId: string, staffId: string) {
-  const params = new URLSearchParams({
-    trainingId,
-    staffId
-  });
-
-  return `${APP_BASE_PATH}/signature?${params.toString()}`;
+  return [training.date, training.time, training.place ?? training.location, training.department].filter(Boolean).join(" · ");
 }
 
 export default function AttendancePage() {
@@ -102,7 +96,7 @@ export default function AttendancePage() {
   const [training, setTraining] = useState<Training>();
   const [availableTrainings, setAvailableTrainings] = useState<Training[]>([]);
   const [staffName, setStaffName] = useState("");
-  const [authCode, setAuthCode] = useState("");
+  const [department, setDepartment] = useState("");
   const [staff, setStaff] = useState<Staff>();
   const [targetResult, setTargetResult] = useState<TrainingTargetResult>();
   const [duplicateResult, setDuplicateResult] = useState<DuplicateAttendanceResult>();
@@ -146,7 +140,7 @@ export default function AttendancePage() {
 
         const qrTrainings = trainingListResult.data.filter(isQrAvailableTraining).sort((a, b) => parseTrainingDate(a.date) - parseTrainingDate(b.date));
         setAvailableTrainings(qrTrainings);
-        setMessage(qrTrainings.length ? "출석할 교육을 선택하거나 연수장 QR 코드를 스캔해 주세요." : "현재 QR 출석 가능한 교육이 없습니다.");
+        setMessage(qrTrainings.length ? "출석할 교육을 선택하거나 연수장의 QR 코드를 스캔해 주세요." : "현재 QR 출석 가능한 교육이 없습니다.");
         setStep("setup");
         return;
       }
@@ -166,7 +160,7 @@ export default function AttendancePage() {
       setTraining(trainingResult.data);
 
       if (!isActiveTraining(trainingResult.data)) {
-        setMessage("현재 활성 상태의 교육만 QR 출석할 수 있습니다.");
+        setMessage("현재 활성 상태인 교육만 QR 출석할 수 있습니다.");
         setStep("setup");
         return;
       }
@@ -177,7 +171,7 @@ export default function AttendancePage() {
         return;
       }
 
-      setMessage("성명과 인증코드를 입력해 출석 가능 여부를 확인해 주세요.");
+      setMessage("성명과 소속부서로 본인 확인 후 출석을 진행해 주세요.");
       setStep("ready");
     }
 
@@ -188,9 +182,9 @@ export default function AttendancePage() {
     };
   }, []);
 
-  const canSubmitVerification = useMemo(
-    () => Boolean(runtimeConfig && training && staffName.trim() && authCode.trim() && step !== "checking" && step !== "saving"),
-    [authCode, runtimeConfig, staffName, step, training]
+  const canLookupStaff = useMemo(
+    () => Boolean(runtimeConfig && training && staffName.trim() && step !== "checking" && step !== "saving"),
+    [runtimeConfig, staffName, step, training]
   );
 
   const canSaveAttendance = Boolean(
@@ -204,10 +198,10 @@ export default function AttendancePage() {
   );
 
   function handleScanStart() {
-    setMessage("QR 카메라 스캔 기능은 준비 중입니다. 현재는 휴대폰 기본 카메라로 연수장 QR을 스캔하거나 아래 교육을 선택해 주세요.");
+    setMessage("카메라 스캔 기능은 다음 단계에서 연결됩니다. 지금은 휴대폰 카메라로 QR을 스캔하거나 아래 교육을 선택해 주세요.");
   }
 
-  async function handleVerify(event: FormEvent<HTMLFormElement>) {
+  async function handleStaffLookup(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (!runtimeConfig || !training || !trainingId) {
@@ -220,13 +214,13 @@ export default function AttendancePage() {
     setTargetResult(undefined);
     setDuplicateResult(undefined);
     setSaveResult(undefined);
-    setMessage("교직원 정보를 확인하고 있습니다.");
+    setMessage("교직원 정보와 출석 가능 여부를 확인하고 있습니다.");
 
-    const staffResult = await verifyStaff(runtimeConfig, staffName.trim(), authCode.trim());
+    const staffResult = await getStaffByNameDept(runtimeConfig, staffName.trim(), department.trim());
 
     if (staffResult.error || !staffResult.data) {
       setStep("ready");
-      setMessage("성명 또는 인증코드를 확인해 주세요.");
+      setMessage(staffResult.error || "교직원 정보를 확인할 수 없습니다. 동명이인이 있으면 소속부서를 입력해 주세요.");
       return;
     }
 
@@ -308,7 +302,7 @@ export default function AttendancePage() {
             뒤로가기
           </button>
           <strong>QR 출석</strong>
-          <a className="ghost-button compact" href={`${APP_BASE_PATH}/`}>
+          <a className="ghost-button compact" href={pageHref("/")}>
             홈
           </a>
         </header>
@@ -333,7 +327,7 @@ export default function AttendancePage() {
                   <button className="primary-action" onClick={handleScanStart} type="button">
                     QR 스캔 시작
                   </button>
-                  <a className="ghost-button" href={`${APP_BASE_PATH}/my-status/`}>
+                  <a className="ghost-button" href={pageHref("/my-status")}>
                     내 이수현황으로 이동
                   </a>
                 </div>
@@ -399,11 +393,11 @@ export default function AttendancePage() {
           </>
         ) : (
           <>
-            <section className="today-card" aria-label="선택된 교육">
+            <section className="today-card" aria-label="선택한 교육">
               <div className="today-copy">
                 <div className="section-kicker">
                   <CheckIcon />
-                  <span>선택된 교육</span>
+                  <span>선택한 교육</span>
                 </div>
                 <h1>{training?.title ?? "교육 정보를 확인하는 중입니다"}</h1>
                 <p>{training ? formatTrainingMeta(training) : "교육 정보를 불러오고 있습니다."}</p>
@@ -412,43 +406,26 @@ export default function AttendancePage() {
             </section>
 
             {training ? (
-              <section className="training-section" aria-label="교육 정보">
+              <section className="training-section" aria-label="본인 조회">
                 <div className="section-head">
                   <div>
-                    <h2>교육 정보</h2>
-                    <p>{formatTrainingMeta(training)}</p>
-                  </div>
-                  <div className="badge-row">
-                    <span>{training.category || "교육구분 미입력"}</span>
-                    <span>{training.qrEnabled ? "QR 사용" : "QR 미사용"}</span>
-                    <span>{training.signatureRequired ? "전자서명 필요" : "전자서명 없음"}</span>
-                    <span>{training.status || "상태 미입력"}</span>
-                  </div>
-                </div>
-              </section>
-            ) : null}
-
-            {training && step !== "complete" ? (
-              <section className="training-section" aria-label="교직원 인증">
-                <div className="section-head">
-                  <div>
-                    <h2>교직원 인증</h2>
-                    <p>성명과 인증코드로 교육 대상 여부와 기존 출석 여부를 확인합니다.</p>
+                    <h2>본인 조회</h2>
+                    <p>성명과 소속부서로 교육 대상 여부와 기존 출석 여부를 확인합니다. 동명이인이 있을 때는 소속부서를 입력해 주세요.</p>
                   </div>
                 </div>
 
-                <form className="attendance-form" onSubmit={handleVerify}>
+                <form className="attendance-form" onSubmit={handleStaffLookup}>
                   <label className="field-group">
                     <span>성명</span>
-                    <input autoComplete="name" onChange={(event) => setStaffName(event.target.value)} placeholder="예: 홍길동" type="text" value={staffName} />
+                    <input autoComplete="name" onChange={(event) => setStaffName(event.target.value)} placeholder="예: 박숙현" type="text" value={staffName} />
                   </label>
 
                   <label className="field-group">
-                    <span>인증코드</span>
-                    <input autoComplete="off" onChange={(event) => setAuthCode(event.target.value)} placeholder="인증코드 입력" type="password" value={authCode} />
+                    <span>소속부서</span>
+                    <input autoComplete="organization" onChange={(event) => setDepartment(event.target.value)} placeholder="동명이인일 때 입력" type="text" value={department} />
                   </label>
 
-                  <button className="primary-action" disabled={!canSubmitVerification} type="submit">
+                  <button className="primary-action" disabled={!canLookupStaff} type="submit">
                     출석 가능 여부 확인
                   </button>
                 </form>
@@ -504,8 +481,10 @@ export default function AttendancePage() {
                         </a>
                       ) : null}
                     </>
-                  ) : null}
-                  <a className="ghost-button" href={`${APP_BASE_PATH}/`}>
+                  ) : (
+                    <p>전자서명이 필요하지 않은 교육입니다. 출석 처리가 완료되었습니다.</p>
+                  )}
+                  <a className="ghost-button" href={pageHref("/")}>
                     홈으로 돌아가기
                   </a>
                 </div>

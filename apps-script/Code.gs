@@ -143,6 +143,7 @@ const ACTIONS = {
   GET_TRAINING_LIST: "getTrainingList",
   GET_TRAINING_DETAIL: "getTrainingDetail",
   GET_STAFF_DETAIL: "getStaffDetail",
+  GET_STAFF_BY_NAME_DEPT: "getStaffByNameDept",
   GET_STAFF_LIST: "getStaffList",
   CREATE_STAFF: "createStaff",
   UPDATE_STAFF: "updateStaff",
@@ -241,6 +242,8 @@ function doPost(e) {
         return getTrainingDetail(payload);
       case ACTIONS.GET_STAFF_DETAIL:
         return getStaffDetail(payload);
+      case ACTIONS.GET_STAFF_BY_NAME_DEPT:
+        return getStaffByNameDept(payload);
       case ACTIONS.GET_STAFF_LIST:
         return getStaffList();
       case ACTIONS.CREATE_STAFF:
@@ -610,6 +613,26 @@ function getStaffDetail(payload) {
   }
 
   return jsonResponse(normalizeStaffRow_(staff));
+}
+
+/**
+ * Read one active staff member by name and optional department.
+ *
+ * Input: { name: string, department?: string }
+ * Output: { staffId, name, department, position }
+ */
+function getStaffByNameDept(payload) {
+  const name = payload && payload.name ? String(payload.name).trim() : "";
+  const department = payload && payload.department ? String(payload.department).trim() : "";
+  const staffResult = findActiveStaffByNameDept_(name, department);
+
+  if (!staffResult.ok) {
+    return staffResult.response;
+  }
+
+  return jsonResponse({
+    staff: normalizeStaffRow_(staffResult.staff)
+  });
 }
 
 /**

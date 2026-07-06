@@ -36,6 +36,7 @@ export type AppsScriptAction =
   | "getTrainingList"
   | "getTrainingDetail"
   | "getStaffDetail"
+  | "getStaffByNameDept"
   | "getStaffList"
   | "createStaff"
   | "updateStaff"
@@ -276,6 +277,30 @@ export async function getStaffDetail(config: AppConfig, staffId: string): Promis
   } catch (error) {
     return {
       error: error instanceof Error ? error.message : "교직원 정보를 불러오지 못했습니다."
+    };
+  }
+}
+
+export async function getStaffByNameDept(
+  config: AppConfig,
+  name: string,
+  department: string
+): Promise<{ data?: Staff; error?: string }> {
+  try {
+    const payload = await requestAppsScript<{ staff?: Staff } | Staff>(config, "getStaffByNameDept", {
+      name,
+      department
+    });
+    const staff = isStaff(payload) ? payload : payload.staff;
+
+    if (!staff) {
+      return { error: "교직원 정보를 확인할 수 없습니다." };
+    }
+
+    return { data: staff };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "교직원 정보를 확인할 수 없습니다."
     };
   }
 }
