@@ -53,7 +53,7 @@ function normalizedStatus(training: Training) {
 
 function isActive(training: Training) {
   const status = normalizedStatus(training);
-  return status === "활성" || status === "active" || status === "y" || status === "yes" || status === "사용";
+  return ["활성", "진행중", "준비중", "active", "ready", "y", "yes", "사용"].includes(status);
 }
 
 function isFutureDate(date: string) {

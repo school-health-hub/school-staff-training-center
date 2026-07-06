@@ -145,7 +145,9 @@ export default function SetupPage() {
 
     setTrainings(trainingResult.data);
     setSchoolConfig(configResult.data);
-    const activeCount = trainingResult.data.filter((training) => (training.status ?? training.activeStatus ?? "").trim() === "활성").length;
+    const activeCount = trainingResult.data.filter((training) =>
+      ["활성", "진행중", "준비중", "active", "ready", "y", "yes", "사용"].includes((training.status ?? training.activeStatus ?? "").trim().toLowerCase())
+    ).length;
     setTestState(activeCount > 0 ? "success" : "warning");
     setMessage(activeCount > 0 ? "설치 점검이 완료되었습니다. 이제 홈으로 이동해 사용할 수 있습니다." : "교육목록은 연결되었지만 활성 교육이 없습니다.");
   }

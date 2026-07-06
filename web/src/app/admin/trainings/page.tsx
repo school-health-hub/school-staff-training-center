@@ -68,7 +68,7 @@ function PageIcon() {
 
 function isActiveTraining(training: Training) {
   const normalized = (training.status ?? training.activeStatus ?? "").trim().toLowerCase();
-  return normalized === "활성" || normalized === "active" || normalized === "y" || normalized === "yes" || normalized === "사용";
+  return ["활성", "진행중", "준비중", "active", "ready", "y", "yes", "사용"].includes(normalized);
 }
 
 function statusChipClass(training: Training) {

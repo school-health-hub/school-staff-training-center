@@ -193,7 +193,7 @@ function isActiveTraining(activeStatus?: string) {
     return false;
   }
 
-  return activeStatus.trim() === "활성";
+  return ["활성", "진행중", "준비중", "active", "ready", "y", "yes", "사용"].includes(activeStatus.trim().toLowerCase());
 }
 
 function formatTrainingMeta(date?: string, time?: string, location?: string) {

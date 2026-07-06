@@ -101,7 +101,9 @@ export default function AdminAttendancePage() {
         return;
       }
 
-      const activeTrainings = trainingResult.data.filter((training) => (training.status ?? training.activeStatus ?? "").trim() === "활성");
+      const activeTrainings = trainingResult.data.filter((training) =>
+        ["활성", "진행중", "준비중", "active", "ready", "y", "yes", "사용"].includes((training.status ?? training.activeStatus ?? "").trim().toLowerCase())
+      );
       setTrainings(activeTrainings);
       setSelectedTrainingId(activeTrainings[0]?.trainingId ?? "");
       setMessage(activeTrainings.length ? "출석현황을 확인할 교육을 선택해 주세요." : "활성 교육이 없습니다.");

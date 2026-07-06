@@ -58,7 +58,8 @@ function signatureUrl(trainingId: string, staffId: string) {
 }
 
 function isActiveTraining(training?: Training) {
-  return (training?.status ?? training?.activeStatus ?? "").trim() === "활성";
+  const status = (training?.status ?? training?.activeStatus ?? "").trim().toLowerCase();
+  return ["활성", "진행중", "준비중", "active", "ready", "y", "yes", "사용"].includes(status);
 }
 
 function isQrAvailableTraining(training: Training) {

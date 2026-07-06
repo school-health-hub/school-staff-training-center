@@ -87,6 +87,7 @@ const ATTENDANCE = {
   STAFF_ID: "교직원ID",
   STAFF_NAME: "성명",
   DEPARTMENT: "부서",
+  POSITION: "직책",
   ATTENDED_AT: "출석일시",
   METHOD: "출석방법",
   DUPLICATE: "중복여부",
@@ -526,6 +527,7 @@ function saveQrAttendance(payload) {
   row[ATTENDANCE.STAFF_ID] = staffId;
   row[ATTENDANCE.STAFF_NAME] = text_(staff[STAFF.NAME]);
   row[ATTENDANCE.DEPARTMENT] = text_(staff[STAFF.DEPARTMENT]);
+  row[ATTENDANCE.POSITION] = text_(staff[STAFF.POSITION]);
   row[ATTENDANCE.ATTENDED_AT] = attendedAt;
   row[ATTENDANCE.METHOD] = text_(payload.method) || "QR";
   row[ATTENDANCE.DUPLICATE] = "N";
@@ -1139,7 +1141,10 @@ function aliases_() {
   aliases[TRAINING.STATUS] = ["상태", "활성", "activeStatus", "status"];
   aliases[STAFF.ID] = ["교직원ID", "직원ID", "staffId"];
   aliases[STAFF.DEPARTMENT] = ["소속부서", "담당부서", "department"];
+  aliases[STAFF.POSITION] = ["직책", "직위", "position"];
   aliases[STAFF.STATUS] = ["상태", "재직상태", "employmentStatus"];
+  aliases[ATTENDANCE.DEPARTMENT] = ["소속부서", "부서", "department"];
+  aliases[ATTENDANCE.POSITION] = ["직위", "직책", "position"];
   aliases[TARGET.IS_TARGET] = ["대상", "대상여부", "isTarget"];
   aliases[TARGET.REQUIRED] = ["필수", "필수여부", "required"];
   aliases[TARGET.SIGNATURE_EXCLUDED] = ["서명제외", "서명제외여부", "signatureExcluded"];
@@ -1397,7 +1402,15 @@ function isActiveStaff_(row) {
 
 function isActiveStatus_(status) {
   var normalized = text_(status).toLowerCase();
-  return !normalized || normalized === "활성" || normalized === "active" || normalized === "재직" || normalized === "y" || normalized === "사용";
+  return !normalized ||
+    normalized === "활성" ||
+    normalized === "진행중" ||
+    normalized === "준비중" ||
+    normalized === "active" ||
+    normalized === "ready" ||
+    normalized === "재직" ||
+    normalized === "y" ||
+    normalized === "사용";
 }
 
 function isTargetRow_(row) {
