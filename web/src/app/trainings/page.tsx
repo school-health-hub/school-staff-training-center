@@ -1,14 +1,35 @@
 "use client";
 
 import { getTrainingList, loadAppConfig } from "@/lib/apps-script";
+import { getBasePath } from "@/lib/paths";
 import type { Training } from "@/lib/types";
 import { useEffect, useMemo, useState } from "react";
 
-const APP_BASE_PATH = "/school-staff-training-center";
+type TrainingFilter = "all" | "active" | "qr" | "signature" | "certificate" | "inactive";
+
+const APP_BASE_PATH = getBasePath();
+
+const FILTERS: Array<{ key: TrainingFilter; label: string }> = [
+  { key: "all", label: "전체" },
+  { key: "active", label: "진행중/활성" },
+  { key: "qr", label: "QR 출석" },
+  { key: "signature", label: "전자서명 필요" },
+  { key: "certificate", label: "이수증 제출 필요" },
+  { key: "inactive", label: "종료/비활성" }
+];
 
 function ListIcon() {
   return (
-    <svg aria-hidden="true" className="icon" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.85" viewBox="0 0 24 24">
+    <svg
+      aria-hidden="true"
+      className="icon"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="1.85"
+      viewBox="0 0 24 24"
+    >
       <rect height="14" rx="2" width="16" x="4" y="5" />
       <path d="M8 9h8" />
       <path d="M8 13h8" />
@@ -17,17 +38,77 @@ function ListIcon() {
   );
 }
 
+function pageHref(path: string) {
+  return path === "/" ? `${APP_BASE_PATH}/` : `${APP_BASE_PATH}${path}`;
+}
+
+function attendanceHref(trainingId: string) {
+  const params = new URLSearchParams({ trainingId });
+  return `${pageHref("/attendance")}?${params.toString()}`;
+}
+
+function normalizedStatus(training: Training) {
+  return (training.status ?? training.activeStatus ?? "").trim().toLowerCase();
+}
+
+function isActive(training: Training) {
+  const status = normalizedStatus(training);
+  return status === "활성" || status === "active" || status === "y" || status === "yes" || status === "사용";
+}
+
+function isFutureDate(date: string) {
+  if (!date) {
+    return false;
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const trainingDate = new Date(date);
+  if (Number.isNaN(trainingDate.getTime())) {
+    return false;
+  }
+
+  trainingDate.setHours(0, 0, 0, 0);
+  return trainingDate.getTime() > today.getTime();
+}
+
+function statusLabel(training: Training) {
+  if (!isActive(training)) {
+    return "종료/비활성";
+  }
+
+  return isFutureDate(training.date) ? "준비중" : "진행중/활성";
+}
+
+function statusClass(training: Training) {
+  if (!isActive(training)) {
+    return "status-chip status-incomplete";
+  }
+
+  return isFutureDate(training.date) ? "status-chip status-review" : "status-chip status-completed";
+}
+
 function trainingMeta(training: Training) {
   return [training.date, training.time, training.place ?? training.location, training.department].filter(Boolean).join(" · ");
 }
 
-function isActive(training: Training) {
-  return (training.status ?? training.activeStatus ?? "").trim() === "활성";
+function compareTrainings(a: Training, b: Training) {
+  const aTime = Date.parse(a.date || "");
+  const bTime = Date.parse(b.date || "");
+
+  if (!Number.isNaN(aTime) && !Number.isNaN(bTime) && aTime !== bTime) {
+    return aTime - bTime;
+  }
+
+  return (a.title || a.trainingId).localeCompare(b.title || b.trainingId, "ko");
 }
 
 export default function TrainingsPage() {
   const [trainings, setTrainings] = useState<Training[]>([]);
   const [message, setMessage] = useState("교육목록을 불러오는 중입니다.");
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<TrainingFilter>("all");
 
   useEffect(() => {
     let ignore = false;
@@ -61,7 +142,49 @@ export default function TrainingsPage() {
     };
   }, []);
 
-  const activeTrainings = useMemo(() => trainings.filter(isActive), [trainings]);
+  const filteredTrainings = useMemo(() => {
+    const keyword = query.trim().toLowerCase();
+
+    return trainings
+      .filter((training) => {
+        if (!keyword) {
+          return true;
+        }
+
+        return [training.title, training.department, training.category]
+          .filter(Boolean)
+          .some((value) => value.toLowerCase().includes(keyword));
+      })
+      .filter((training) => {
+        if (filter === "active") {
+          return isActive(training);
+        }
+
+        if (filter === "qr") {
+          return training.qrEnabled;
+        }
+
+        if (filter === "signature") {
+          return training.signatureRequired;
+        }
+
+        if (filter === "certificate") {
+          return Boolean(training.certificateRequired);
+        }
+
+        if (filter === "inactive") {
+          return !isActive(training);
+        }
+
+        return true;
+      })
+      .sort(compareTrainings);
+  }, [filter, query, trainings]);
+
+  const activeCount = useMemo(() => trainings.filter(isActive).length, [trainings]);
+  const qrCount = useMemo(() => trainings.filter((training) => training.qrEnabled).length, [trainings]);
+  const signatureCount = useMemo(() => trainings.filter((training) => training.signatureRequired).length, [trainings]);
+  const certificateCount = useMemo(() => trainings.filter((training) => training.certificateRequired).length, [trainings]);
 
   return (
     <main className="page">
@@ -71,19 +194,19 @@ export default function TrainingsPage() {
           <button className="ghost-button" onClick={() => window.history.back()} type="button">
             뒤로가기
           </button>
-          <a className="ghost-button" href={`${APP_BASE_PATH}/`}>
+          <a className="ghost-button" href={pageHref("/")}>
             홈으로
           </a>
         </div>
 
-        <section className="today-card page-hero-card" aria-label="교육목록">
+        <section className="today-card page-hero-card" aria-label="교육목록 안내">
           <div className="today-copy">
             <div className="section-kicker">
               <ListIcon />
-              <span>교육목록</span>
+              <span>TRAINING LIST</span>
             </div>
-            <h1>학교에서 운영 중인 교육을 확인합니다.</h1>
-            <p>활성 교육의 일정, 장소, QR 출석 여부와 이수증 제출 여부를 한눈에 볼 수 있습니다.</p>
+            <h1>학교에서 등록한 교육을 확인합니다.</h1>
+            <p>교육별 일정과 장소, QR 출석, 전자서명, 이수증 제출 필요 여부를 한눈에 확인하고 필요한 기능으로 이동할 수 있습니다.</p>
           </div>
         </section>
 
@@ -99,52 +222,113 @@ export default function TrainingsPage() {
             <strong>{trainings.length}</strong>
           </div>
           <div className="status-summary-card">
-            <span>활성 교육</span>
-            <strong>{activeTrainings.length}</strong>
+            <span>진행중/활성</span>
+            <strong>{activeCount}</strong>
           </div>
           <div className="status-summary-card">
             <span>QR 출석</span>
-            <strong>{activeTrainings.filter((training) => training.qrEnabled).length}</strong>
+            <strong>{qrCount}</strong>
           </div>
           <div className="status-summary-card">
-            <span>이수증 제출</span>
-            <strong>{activeTrainings.filter((training) => training.certificateRequired).length}</strong>
+            <span>전자서명/이수증</span>
+            <strong>{signatureCount + certificateCount}</strong>
           </div>
         </section>
 
-        <section className="training-section" aria-label="활성 교육 목록">
+        <section className="training-section" aria-label="교육 검색과 필터">
           <div className="section-head">
             <div>
-              <h2>활성 교육</h2>
-              <p>현재 출석과 제출 흐름에 연결된 교육만 먼저 표시합니다.</p>
+              <h2>교육 찾기</h2>
+              <p>교육명, 담당부서, 교육구분으로 검색하고 필요한 업무 유형만 모아볼 수 있습니다.</p>
+            </div>
+            <span className="status-chip status-review">{filteredTrainings.length}개 표시</span>
+          </div>
+
+          <div className="training-card">
+            <label className="field-group">
+              검색
+              <input
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="교육명, 담당부서, 교육구분 검색"
+                type="search"
+                value={query}
+              />
+            </label>
+            <div className="badge-row" aria-label="교육 필터">
+              {FILTERS.map((option) => (
+                <button
+                  className={filter === option.key ? "primary-action compact" : "ghost-button compact"}
+                  key={option.key}
+                  onClick={() => setFilter(option.key)}
+                  type="button"
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="training-section" aria-label="교육목록">
+          <div className="section-head">
+            <div>
+              <h2>전체 교육</h2>
+              <p>일반 교직원에게 필요한 QR 출석, 전자서명, 이수증 제출 이동 버튼만 표시합니다.</p>
             </div>
           </div>
 
-          {activeTrainings.length ? (
+          {filteredTrainings.length ? (
             <div className="training-list">
-              {activeTrainings.map((training) => (
+              {filteredTrainings.map((training) => (
                 <article className="training-card" key={training.trainingId}>
                   <div className="status-card-head">
                     <div>
-                      <strong>{training.title || training.trainingId}</strong>
+                      <span className={statusClass(training)}>{statusLabel(training)}</span>
+                      <p>{training.department || "담당부서 미입력"}</p>
+                      <strong>{training.title || training.trainingId || "교육명 미입력"}</strong>
                       <p>{trainingMeta(training) || training.trainingId}</p>
                     </div>
-                    <span className="status-chip status-completed">활성</span>
                   </div>
+
+                  <dl className="qr-training-info">
+                    <div>
+                      <dt>교육일자</dt>
+                      <dd>{training.date || "-"}</dd>
+                    </div>
+                    <div>
+                      <dt>교육시간</dt>
+                      <dd>{training.time || "-"}</dd>
+                    </div>
+                    <div>
+                      <dt>장소</dt>
+                      <dd>{training.place || training.location || "-"}</dd>
+                    </div>
+                    <div>
+                      <dt>교육구분</dt>
+                      <dd>{training.category || "-"}</dd>
+                    </div>
+                  </dl>
+
                   <div className="badge-row">
-                    {training.category ? <span>{training.category}</span> : null}
-                    <span>{training.qrEnabled ? "QR 출석" : "QR 미사용"}</span>
+                    <span>{training.qrEnabled ? "QR 사용" : "QR 미사용"}</span>
                     <span>{training.signatureRequired ? "전자서명 필요" : "전자서명 없음"}</span>
-                    {training.certificateRequired ? <span>이수증 제출 필요</span> : null}
+                    <span>{training.certificateRequired ? "이수증 제출 필요" : "이수증 제출 없음"}</span>
+                    <span>{training.status || training.activeStatus || "상태 미입력"}</span>
                   </div>
+
                   <div className="route-actions">
                     {training.qrEnabled ? (
-                      <a className="primary-action" href={`${APP_BASE_PATH}/attendance?trainingId=${encodeURIComponent(training.trainingId)}`}>
-                        QR 출석하기
+                      <a className="primary-action" href={attendanceHref(training.trainingId)}>
+                        QR 출석
+                      </a>
+                    ) : null}
+                    {training.signatureRequired ? (
+                      <a className="ghost-button" href={pageHref("/signature")}>
+                        전자서명
                       </a>
                     ) : null}
                     {training.certificateRequired ? (
-                      <a className="ghost-button" href={`${APP_BASE_PATH}/certificate/`}>
+                      <a className="ghost-button" href={pageHref("/certificate")}>
                         이수증 제출
                       </a>
                     ) : null}
@@ -155,8 +339,8 @@ export default function TrainingsPage() {
           ) : (
             <div className="empty-training">
               <div>
-                <strong>등록된 활성 교육이 없습니다.</strong>
-                <p>관리자 메뉴에서 교육목록을 확인하거나 허브 시트의 활성상태를 확인해 주세요.</p>
+                <strong>조건에 맞는 교육이 없습니다.</strong>
+                <p>검색어를 줄이거나 필터를 전체로 변경해 주세요. 등록된 교육이 없다면 학교 담당자에게 교육목록 등록을 요청해 주세요.</p>
               </div>
             </div>
           )}
