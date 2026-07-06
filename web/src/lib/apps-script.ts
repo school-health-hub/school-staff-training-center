@@ -3,6 +3,7 @@ import type {
   AdminAttendanceStatusResult,
   AdminStaff,
   AppsScriptEnvelope,
+  BulkSignatureResult,
   CertificateRequiredTrainingsResult,
   CertificateSubmissionResult,
   DuplicateAttendanceResult,
@@ -15,6 +16,7 @@ import type {
   SchoolConfigUpdate,
   SetupValidationResult,
   SignatureExistsResult,
+  SignatureRequiredTrainingsResult,
   Staff,
   StaffListResult,
   Training,
@@ -48,6 +50,8 @@ export type AppsScriptAction =
   | "saveQrAttendance"
   | "checkSignatureExists"
   | "saveSignature"
+  | "getSignatureRequiredTrainings"
+  | "saveBulkSignature"
   | "getMyTrainingStatus"
   | "getMyTrainingStatusByNameDept"
   | "getCertificateRequiredTrainings"
@@ -456,6 +460,46 @@ export async function saveSignature(
       trainingId,
       staffId,
       signatureImageBase64
+    });
+    return { data };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "전자서명을 저장하지 못했습니다."
+    };
+  }
+}
+
+export async function getSignatureRequiredTrainings(
+  config: AppConfig,
+  staffId: string,
+  excludeSigned = true
+): Promise<{ data?: SignatureRequiredTrainingsResult; error?: string }> {
+  try {
+    const data = await requestAppsScript<SignatureRequiredTrainingsResult>(config, "getSignatureRequiredTrainings", {
+      staffId,
+      excludeSigned
+    });
+    return { data };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "전자서명 대상 교육을 불러오지 못했습니다."
+    };
+  }
+}
+
+export async function saveBulkSignature(
+  config: AppConfig,
+  staffId: string,
+  trainingIds: string[],
+  signatureImage: string,
+  selectedDate?: string
+): Promise<{ data?: BulkSignatureResult; error?: string }> {
+  try {
+    const data = await requestAppsScript<BulkSignatureResult>(config, "saveBulkSignature", {
+      staffId,
+      trainingIds,
+      signatureImage,
+      selectedDate
     });
     return { data };
   } catch (error) {

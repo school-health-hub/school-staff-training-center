@@ -2,17 +2,27 @@
 
 import {
   checkSignatureExists,
+  getSignatureRequiredTrainings,
+  getStaffByNameDept,
   getStaffDetail,
   getTrainingDetail,
   loadAppConfig,
-  saveSignature
+  saveBulkSignature
 } from "@/lib/apps-script";
-import type { AppConfig, SaveSignatureResult, SignatureExistsResult, Staff, Training } from "@/lib/types";
-import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
+import type {
+  AppConfig,
+  BulkSignatureResult,
+  SignatureExistsResult,
+  SignatureRequiredTrainingGroup,
+  Staff,
+  Training
+} from "@/lib/types";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type PointerEvent } from "react";
 
 const APP_BASE_PATH = "/school-staff-training-center";
 
-type SignatureStep = "setup" | "ready" | "saving" | "complete";
+type SignatureStep = "setup" | "lookup" | "ready" | "saving" | "complete";
+type SignatureFilter = "today" | "needed" | "all";
 
 function pageHref(path: string) {
   return path === "/" ? `${APP_BASE_PATH}/` : `${APP_BASE_PATH}${path}/`;
@@ -28,6 +38,13 @@ function getParams() {
     trainingId: params.get("trainingId")?.trim() ?? "",
     staffId: params.get("staffId")?.trim() ?? ""
   };
+}
+
+function todayText() {
+  const today = new Date();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const day = String(today.getDate()).padStart(2, "0");
+  return `${today.getFullYear()}-${month}-${day}`;
 }
 
 function formatTrainingMeta(training?: Training) {
@@ -61,6 +78,10 @@ function getCanvasContext(canvas: HTMLCanvasElement) {
   return context;
 }
 
+function flattenGroups(groups: SignatureRequiredTrainingGroup[]) {
+  return groups.flatMap((group) => group.items.map((item) => ({ ...item, groupDate: group.date })));
+}
+
 export default function SignaturePage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawingRef = useRef(false);
@@ -68,23 +89,23 @@ export default function SignaturePage() {
   const [training, setTraining] = useState<Training>();
   const [staff, setStaff] = useState<Staff>();
   const [signatureExists, setSignatureExists] = useState<SignatureExistsResult>();
-  const [saveResult, setSaveResult] = useState<SaveSignatureResult>();
+  const [groups, setGroups] = useState<SignatureRequiredTrainingGroup[]>([]);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkResult, setBulkResult] = useState<BulkSignatureResult>();
   const [hasSignature, setHasSignature] = useState(false);
   const [step, setStep] = useState<SignatureStep>("setup");
   const [message, setMessage] = useState("전자서명 정보를 불러오는 중입니다.");
+  const [name, setName] = useState("");
+  const [department, setDepartment] = useState("");
+  const [filter, setFilter] = useState<SignatureFilter>("needed");
+  const [excludeSigned, setExcludeSigned] = useState(true);
+  const [singleMode, setSingleMode] = useState(false);
 
   useEffect(() => {
     let ignore = false;
 
     async function loadPage() {
-      const nextParams = getParams();
-
-      if (!nextParams.trainingId || !nextParams.staffId) {
-        setMessage("교육목록 또는 출석 완료 화면에서 전자서명할 교육을 선택해 주세요.");
-        setStep("setup");
-        return;
-      }
-
+      const params = getParams();
       const configResult = await loadAppConfig();
 
       if (ignore) {
@@ -99,10 +120,24 @@ export default function SignaturePage() {
 
       setRuntimeConfig(configResult.config);
 
+      if (!params.trainingId) {
+        setMessage("성명과 소속부서로 본인 조회 후 서명 필요한 교육을 선택해 주세요.");
+        setStep("lookup");
+        return;
+      }
+
+      setSingleMode(true);
+
+      if (!params.staffId) {
+        setMessage("QR 출석 완료 화면에서 전자서명을 다시 열어 주세요.");
+        setStep("setup");
+        return;
+      }
+
       const [trainingResult, staffResult, signatureResult] = await Promise.all([
-        getTrainingDetail(configResult.config, nextParams.trainingId),
-        getStaffDetail(configResult.config, nextParams.staffId),
-        checkSignatureExists(configResult.config, nextParams.trainingId, nextParams.staffId)
+        getTrainingDetail(configResult.config, params.trainingId),
+        getStaffDetail(configResult.config, params.staffId),
+        checkSignatureExists(configResult.config, params.trainingId, params.staffId)
       ]);
 
       if (ignore) {
@@ -132,11 +167,30 @@ export default function SignaturePage() {
       setSignatureExists(signatureResult.data);
 
       if (signatureResult.data.exists) {
-        setMessage("이미 전자서명 기록이 있습니다. 중복 서명은 저장하지 않습니다.");
+        setMessage("이미 서명 완료된 교육입니다.");
         setStep("ready");
         return;
       }
 
+      setGroups([
+        {
+          date: trainingResult.data.date || "날짜 미입력",
+          items: [
+            {
+              trainingId: trainingResult.data.trainingId,
+              title: trainingResult.data.title,
+              date: trainingResult.data.date,
+              time: trainingResult.data.time,
+              place: trainingResult.data.place ?? trainingResult.data.location,
+              department: trainingResult.data.department,
+              attendanceDone: true,
+              signatureDone: false,
+              selectable: true
+            }
+          ]
+        }
+      ]);
+      setSelectedIds([trainingResult.data.trainingId]);
       setMessage("아래 서명란에 서명한 뒤 저장해 주세요.");
       setStep("ready");
     }
@@ -149,7 +203,7 @@ export default function SignaturePage() {
   }, []);
 
   useEffect(() => {
-    if (step !== "ready" || signatureExists?.exists) {
+    if ((step !== "ready" && step !== "complete") || signatureExists?.exists) {
       return;
     }
 
@@ -188,10 +242,100 @@ export default function SignaturePage() {
     };
   }, [signatureExists?.exists, step]);
 
-  const canSave = useMemo(
-    () => Boolean(runtimeConfig && training && staff && hasSignature && step === "ready" && !signatureExists?.exists),
-    [hasSignature, runtimeConfig, signatureExists?.exists, staff, step, training]
+  const allItems = useMemo(() => flattenGroups(groups), [groups]);
+  const today = todayText();
+  const visibleGroups = useMemo(
+    () =>
+      groups
+        .map((group) => ({
+          ...group,
+          items: group.items.filter((item) => {
+            if (filter === "today" && item.date !== today) {
+              return false;
+            }
+
+            if (filter === "needed" && item.signatureDone) {
+              return false;
+            }
+
+            return true;
+          })
+        }))
+        .filter((group) => group.items.length > 0),
+    [filter, groups, today]
   );
+  const selectedItems = useMemo(() => allItems.filter((item) => selectedIds.includes(item.trainingId)), [allItems, selectedIds]);
+  const selectedDates = Array.from(new Set(selectedItems.map((item) => item.date || "날짜 미입력")));
+  const selectedDateLabel = selectedDates.length === 1 ? selectedDates[0] : selectedDates.length > 1 ? "복수날짜" : "";
+  const canSave = Boolean(runtimeConfig && staff && selectedIds.length > 0 && hasSignature && step === "ready" && !signatureExists?.exists);
+
+  async function loadSignatureTargets(nextStaff: Staff, nextExcludeSigned = excludeSigned) {
+    if (!runtimeConfig) {
+      setMessage("app-config.json 설정을 먼저 확인해 주세요.");
+      return;
+    }
+
+    const result = await getSignatureRequiredTrainings(runtimeConfig, nextStaff.staffId, nextExcludeSigned);
+
+    if (result.error || !result.data) {
+      setGroups([]);
+      setSelectedIds([]);
+      setMessage(result.error || "전자서명 대상 교육을 불러오지 못했습니다.");
+      return;
+    }
+
+    setGroups(result.data.groups);
+    setSelectedIds([]);
+    setMessage(result.data.groups.length ? "서명할 교육을 선택한 뒤 아래 서명란에 서명해 주세요." : "현재 전자서명이 필요한 교육이 없습니다.");
+    setStep("ready");
+  }
+
+  async function handleLookup(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!runtimeConfig || !name.trim()) {
+      setMessage("성명을 입력해 주세요.");
+      return;
+    }
+
+    setStep("setup");
+    setMessage("교직원 정보를 확인하고 있습니다.");
+
+    const staffResult = await getStaffByNameDept(runtimeConfig, name.trim(), department.trim());
+
+    if (staffResult.error || !staffResult.data) {
+      setStep("lookup");
+      setMessage(staffResult.error || "교직원 정보를 확인할 수 없습니다. 동명이인이 있으면 소속부서를 입력해 주세요.");
+      return;
+    }
+
+    setStaff(staffResult.data);
+    await loadSignatureTargets(staffResult.data, excludeSigned);
+  }
+
+  async function handleExcludeSignedChange(nextValue: boolean) {
+    setExcludeSigned(nextValue);
+    if (staff) {
+      await loadSignatureTargets(staff, nextValue);
+    }
+  }
+
+  function toggleTraining(trainingId: string) {
+    setSelectedIds((current) => (current.includes(trainingId) ? current.filter((id) => id !== trainingId) : [...current, trainingId]));
+  }
+
+  function toggleDate(group: SignatureRequiredTrainingGroup) {
+    const selectableIds = group.items.filter((item) => item.selectable).map((item) => item.trainingId);
+    const allSelected = selectableIds.every((id) => selectedIds.includes(id));
+
+    setSelectedIds((current) => {
+      if (allSelected) {
+        return current.filter((id) => !selectableIds.includes(id));
+      }
+
+      return Array.from(new Set([...current, ...selectableIds]));
+    });
+  }
 
   function pointerPosition(event: PointerEvent<HTMLCanvasElement>) {
     const canvas = canvasRef.current;
@@ -272,8 +416,13 @@ export default function SignaturePage() {
   async function handleSave() {
     const canvas = canvasRef.current;
 
-    if (!runtimeConfig || !training || !staff || !canvas) {
+    if (!runtimeConfig || !staff || !canvas) {
       setMessage("전자서명 저장에 필요한 정보를 다시 확인해 주세요.");
+      return;
+    }
+
+    if (!selectedIds.length) {
+      setMessage("서명할 교육을 선택해 주세요.");
       return;
     }
 
@@ -283,9 +432,9 @@ export default function SignaturePage() {
     }
 
     setStep("saving");
-    setMessage("전자서명을 저장하고 있습니다.");
+    setMessage(`선택한 교육 ${selectedIds.length}건에 전자서명을 저장하고 있습니다.`);
 
-    const result = await saveSignature(runtimeConfig, training.trainingId, staff.staffId, canvas.toDataURL("image/png"));
+    const result = await saveBulkSignature(runtimeConfig, staff.staffId, selectedIds, canvas.toDataURL("image/png"), selectedDateLabel);
 
     if (result.error || !result.data) {
       setStep("ready");
@@ -293,23 +442,9 @@ export default function SignaturePage() {
       return;
     }
 
-    if (result.data.duplicate || result.data.status === "already") {
-      setSignatureExists({
-        exists: true,
-        signatureId: result.data.signatureId,
-        signedAt: result.data.signedAt,
-        fileUrl: result.data.fileUrl,
-        fileId: result.data.fileId,
-        saveStatus: result.data.saveStatus
-      });
-      setStep("ready");
-      setMessage("이미 전자서명 기록이 있어 새로 저장하지 않았습니다.");
-      return;
-    }
-
-    setSaveResult(result.data);
+    setBulkResult(result.data);
     setStep("complete");
-      setMessage("출석과 전자서명이 모두 완료되었습니다.");
+    setMessage(`전자서명이 완료되었습니다. 저장 ${result.data.savedCount}건${result.data.skippedCount ? `, 건너뜀 ${result.data.skippedCount}건` : ""}`);
   }
 
   return (
@@ -331,8 +466,8 @@ export default function SignaturePage() {
               <CheckIcon />
               <span>전자서명</span>
             </div>
-            <h1>{training?.title ?? "전자서명 준비"}</h1>
-            <p>{training ? formatTrainingMeta(training) : "QR 출석 완료 후 전자서명을 진행해 주세요."}</p>
+            <h1>{training?.title ?? "전자서명"}</h1>
+            <p>{singleMode ? "QR 출석 완료 후 전자서명을 진행해 주세요." : "서명이 필요한 교육을 확인하고 전자서명을 제출합니다."}</p>
           </div>
         </section>
 
@@ -340,6 +475,30 @@ export default function SignaturePage() {
           <div className="soft-alert" role={step === "complete" ? "status" : "alert"}>
             {message}
           </div>
+        ) : null}
+
+        {!singleMode && !staff ? (
+          <section className="training-section" aria-label="본인 조회">
+            <div className="section-head">
+              <div>
+                <h2>본인 조회</h2>
+                <p>성명과 소속부서로 본인에게 필요한 전자서명 대상을 확인합니다. 인증코드는 요구하지 않습니다.</p>
+              </div>
+            </div>
+            <form className="attendance-form" onSubmit={handleLookup}>
+              <label className="field-group">
+                <span>성명</span>
+                <input autoComplete="name" onChange={(event) => setName(event.target.value)} placeholder="예: 박숙현" type="text" value={name} />
+              </label>
+              <label className="field-group">
+                <span>소속부서</span>
+                <input autoComplete="organization" onChange={(event) => setDepartment(event.target.value)} placeholder="동명이인일 때 입력" type="text" value={department} />
+              </label>
+              <button className="primary-action" disabled={step === "setup" || !name.trim()} type="submit">
+                조회하기
+              </button>
+            </form>
+          </section>
         ) : null}
 
         {training ? (
@@ -397,12 +556,98 @@ export default function SignaturePage() {
           </section>
         ) : null}
 
-        {step !== "complete" && !signatureExists?.exists ? (
-          <section className="training-section" aria-label="서명란">
+        {!singleMode && staff && step !== "complete" ? (
+          <section className="training-section" aria-label="전자서명 대상 교육">
             <div className="section-head">
               <div>
-                <h2>서명란</h2>
-                <p>흰색 영역 안에 손가락이나 마우스로 서명해 주세요.</p>
+                <h2>서명 필요한 교육</h2>
+                <p>날짜별로 교육을 선택하고 한 번의 서명으로 저장합니다.</p>
+              </div>
+              <div className="badge-row">
+                <button className={filter === "today" ? "primary-action compact" : "ghost-button compact"} onClick={() => setFilter("today")} type="button">
+                  오늘 교육
+                </button>
+                <button className={filter === "needed" ? "primary-action compact" : "ghost-button compact"} onClick={() => setFilter("needed")} type="button">
+                  서명 필요
+                </button>
+                <button className={filter === "all" ? "primary-action compact" : "ghost-button compact"} onClick={() => setFilter("all")} type="button">
+                  전체 대상 교육
+                </button>
+              </div>
+              <label className="checkbox-line">
+                <input checked={excludeSigned} onChange={(event) => void handleExcludeSignedChange(event.target.checked)} type="checkbox" />
+                <span>이미 서명 완료 제외</span>
+              </label>
+            </div>
+
+            <div className="training-list">
+              {visibleGroups.length ? (
+                visibleGroups.map((group) => {
+                  const selectableIds = group.items.filter((item) => item.selectable).map((item) => item.trainingId);
+                  const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selectedIds.includes(id));
+
+                  return (
+                    <article className="training-card" key={group.date}>
+                      <div className="status-card-head">
+                        <div>
+                          <span className="status-chip status-review">{group.date}</span>
+                          <strong>{group.date} 교육</strong>
+                          <p>선택 가능 {selectableIds.length}건</p>
+                        </div>
+                        <button className="ghost-button compact" disabled={!selectableIds.length} onClick={() => toggleDate(group)} type="button">
+                          {allSelected ? "전체 해제" : `${group.date} 전체 선택`}
+                        </button>
+                      </div>
+                      <div className="training-list">
+                        {group.items.map((item) => (
+                          <label className="training-card attendance-training-card" key={item.trainingId}>
+                            <div className="status-card-head">
+                              <div>
+                                <strong>{item.title}</strong>
+                                <p>{[item.date, item.time, item.place].filter(Boolean).join(" · ") || "교육 정보 미입력"}</p>
+                              </div>
+                              <input
+                                checked={selectedIds.includes(item.trainingId)}
+                                disabled={!item.selectable}
+                                onChange={() => toggleTraining(item.trainingId)}
+                                type="checkbox"
+                              />
+                            </div>
+                            <div className="badge-row">
+                              <span>{item.attendanceDone ? "출석 완료" : item.attendanceRequired ? "출석 필요" : "출석 확인 없음"}</span>
+                              <span>{item.signatureDone ? "서명 완료" : "서명 필요"}</span>
+                              {!item.selectable && item.blockedReason ? <span>{item.blockedReason}</span> : null}
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                    </article>
+                  );
+                })
+              ) : (
+                <div className="empty-training">
+                  <div>
+                    <strong>표시할 전자서명 대상 교육이 없습니다.</strong>
+                    <p>필터를 변경하거나 관리자에게 교육대상/출석 상태를 확인해 주세요.</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </section>
+        ) : null}
+
+        {staff && !signatureExists?.exists && step !== "complete" ? (
+          <section className="training-section" aria-label="선택 요약 및 서명">
+            <div className="section-head">
+              <div>
+                <h2>선택 요약</h2>
+                <p>선택한 교육 {selectedItems.length}건{selectedDateLabel ? ` · ${selectedDateLabel}` : ""}</p>
+              </div>
+              <div className="badge-row">
+                {selectedItems.slice(0, 4).map((item) => (
+                  <span key={item.trainingId}>{item.title}</span>
+                ))}
+                {selectedItems.length > 4 ? <span>외 {selectedItems.length - 4}건</span> : null}
               </div>
             </div>
 
@@ -422,29 +667,35 @@ export default function SignaturePage() {
                 다시쓰기
               </button>
               <button className="primary-action" disabled={!canSave} onClick={handleSave} type="button">
-                {step === "saving" ? "저장 중" : "서명 완료 및 저장"}
+                {step === "saving" ? "저장 중" : `선택한 교육 ${selectedItems.length}건에 서명 저장`}
               </button>
             </div>
           </section>
         ) : null}
 
-        {step === "complete" && saveResult ? (
+        {step === "complete" && bulkResult ? (
           <section className="today-card" aria-label="전자서명 완료">
             <div className="today-copy">
               <div className="section-kicker">
                 <CheckIcon />
                 <span>저장 완료</span>
               </div>
-              <h2>출석과 전자서명이 모두 완료되었습니다.</h2>
-              <p>
-                {saveResult.trainingTitle || training?.title} · {saveResult.signedAt}
-              </p>
+              <h2>전자서명이 완료되었습니다.</h2>
+              <p>완료된 교육 {bulkResult.savedCount}건</p>
+              <div className="badge-row">
+                {bulkResult.rows.map((row) => (
+                  <span key={row.signatureId}>{row.trainingTitle}</span>
+                ))}
+              </div>
+              {bulkResult.skipped.length ? (
+                <p>건너뛴 교육 {bulkResult.skippedCount}건: {bulkResult.skipped.map((item) => `${item.title || item.trainingId}(${item.reason})`).join(", ")}</p>
+              ) : null}
               <div className="route-actions">
                 <a className="primary-action" href={pageHref("/my-status")}>
                   내 이수현황 보기
                 </a>
                 <a className="ghost-button" href={pageHref("/")}>
-                  홈으로 돌아가기
+                  홈으로
                 </a>
               </div>
             </div>

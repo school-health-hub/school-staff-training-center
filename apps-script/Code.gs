@@ -154,7 +154,9 @@ const ACTIONS = {
   CHECK_DUPLICATE_ATTENDANCE: "checkDuplicateAttendance",
   SAVE_QR_ATTENDANCE: "saveQrAttendance",
   SAVE_SIGNATURE: "saveSignature",
+  SAVE_BULK_SIGNATURE: "saveBulkSignature",
   CHECK_SIGNATURE_EXISTS: "checkSignatureExists",
+  GET_SIGNATURE_REQUIRED_TRAININGS: "getSignatureRequiredTrainings",
   GET_MY_TRAINING_STATUS: "getMyTrainingStatus",
   GET_MY_TRAINING_STATUS_BY_NAME_DEPT: "getMyTrainingStatusByNameDept",
   GET_CERTIFICATE_REQUIRED_TRAININGS: "getCertificateRequiredTrainings",
@@ -264,8 +266,12 @@ function doPost(e) {
         return saveQrAttendance(payload);
       case ACTIONS.SAVE_SIGNATURE:
         return saveSignature(payload);
+      case ACTIONS.SAVE_BULK_SIGNATURE:
+        return saveBulkSignature(payload);
       case ACTIONS.CHECK_SIGNATURE_EXISTS:
         return checkSignatureExists(payload);
+      case ACTIONS.GET_SIGNATURE_REQUIRED_TRAININGS:
+        return getSignatureRequiredTrainings(payload);
       case ACTIONS.GET_MY_TRAINING_STATUS:
         return getMyTrainingStatus(payload);
       case ACTIONS.GET_MY_TRAINING_STATUS_BY_NAME_DEPT:
@@ -931,6 +937,240 @@ function checkSignatureExists(payload) {
     fileUrl: existing[SIGNATURE_COLUMNS.FILE_URL] || "",
     fileId: existing[SIGNATURE_COLUMNS.FILE_ID] || "",
     saveStatus: existing[SIGNATURE_COLUMNS.SAVE_STATUS] || "완료"
+  });
+}
+
+function getSignatureRequiredTrainings(payload) {
+  const staffId = payload && payload.staffId ? String(payload.staffId).trim() : "";
+  const excludeSigned = payload && payload.excludeSigned !== undefined ? isTruthy(payload.excludeSigned) : true;
+
+  if (!staffId) {
+    return errorResponse("교직원ID가 필요합니다.", "MISSING_STAFF_ID");
+  }
+
+  const staff = findByColumn(SHEET_NAMES.STAFF, STAFF_COLUMNS.STAFF_ID, staffId);
+  if (!staff || !isActiveStaff(staff)) {
+    return errorResponse("교직원 정보를 찾을 수 없습니다.", "STAFF_NOT_FOUND");
+  }
+
+  const targets = readRows(SHEET_NAMES.TARGETS).filter(function (row) {
+    return String(row[TARGET_COLUMNS.STAFF_ID] || "").trim() === staffId &&
+      isTruthy(row[TARGET_COLUMNS.IS_TARGET]);
+  });
+  const trainings = readRows(SHEET_NAMES.TRAININGS);
+  const signatures = readRows(SHEET_NAMES.SIGNATURES);
+  const attendances = readRows(SHEET_NAMES.ATTENDANCE);
+  const items = targets.map(function (target) {
+    const trainingId = String(target[TARGET_COLUMNS.TRAINING_ID] || "").trim();
+    const training = findInRows_(trainings, TRAINING_COLUMNS.TRAINING_ID, trainingId);
+    if (!training) {
+      return null;
+    }
+
+    const normalizedTraining = normalizeTrainingRow_(training);
+    const signatureRequired = normalizedTraining.signatureRequired && !isTruthy(target[TARGET_COLUMNS.SIGNATURE_EXCLUDED]);
+    if (!signatureRequired || !isActiveTrainingStatus(normalizedTraining.status)) {
+      return null;
+    }
+
+    const attendance = attendances.find(function (row) {
+      return String(row[ATTENDANCE_COLUMNS.TRAINING_ID] || "").trim() === trainingId &&
+        String(row[ATTENDANCE_COLUMNS.STAFF_ID] || "").trim() === staffId;
+    });
+    const signature = signatures.find(function (row) {
+      return String(row[SIGNATURE_COLUMNS.TRAINING_ID] || "").trim() === trainingId &&
+        String(row[SIGNATURE_COLUMNS.STAFF_ID] || "").trim() === staffId;
+    });
+    const attendanceRequired = normalizedTraining.qrEnabled;
+    const attendanceDone = Boolean(attendance);
+    const signatureDone = Boolean(signature);
+    const selectable = !signatureDone && (!attendanceRequired || attendanceDone);
+
+    if (excludeSigned && signatureDone) {
+      return null;
+    }
+
+    return {
+      trainingId: normalizedTraining.trainingId,
+      title: normalizedTraining.title,
+      date: normalizedTraining.date,
+      time: normalizedTraining.time,
+      place: normalizedTraining.place || normalizedTraining.location,
+      department: normalizedTraining.department,
+      attendanceRequired: attendanceRequired,
+      attendanceDone: attendanceDone,
+      attendedAt: attendance ? serializeDateTime_(attendance[ATTENDANCE_COLUMNS.ATTENDED_AT]) : "",
+      signatureDone: signatureDone,
+      signedAt: signature ? serializeDateTime_(signature[SIGNATURE_COLUMNS.SIGNED_AT]) : "",
+      selectable: selectable,
+      blockedReason: signatureDone ? "이미 서명 완료" : attendanceRequired && !attendanceDone ? "출석 후 서명 가능" : ""
+    };
+  }).filter(Boolean);
+
+  items.sort(compareSignatureRequiredItems_);
+
+  const groupsByDate = {};
+  items.forEach(function (item) {
+    const date = item.date || "날짜 미입력";
+    if (!groupsByDate[date]) {
+      groupsByDate[date] = [];
+    }
+    groupsByDate[date].push(item);
+  });
+
+  const groups = Object.keys(groupsByDate).map(function (date) {
+    return {
+      date: date,
+      items: groupsByDate[date]
+    };
+  }).sort(function (a, b) {
+    return compareDateForSignature_(a.date, b.date);
+  });
+
+  return jsonResponse({
+    staff: normalizeStaffRow_(staff),
+    groups: groups
+  });
+}
+
+function saveBulkSignature(payload) {
+  const staffId = payload && payload.staffId ? String(payload.staffId).trim() : "";
+  const trainingIds = payload && Array.isArray(payload.trainingIds) ? payload.trainingIds.map(function (id) {
+    return String(id || "").trim();
+  }).filter(Boolean) : [];
+  const signatureImage = payload && (payload.signatureImage || payload.signatureImageBase64)
+    ? String(payload.signatureImage || payload.signatureImageBase64)
+    : "";
+
+  if (!staffId || !trainingIds.length) {
+    return errorResponse("교직원ID와 서명할 교육이 필요합니다.", "MISSING_BULK_SIGNATURE_KEYS");
+  }
+
+  if (!signatureImage) {
+    return errorResponse("서명 이미지가 필요합니다.", "MISSING_SIGNATURE_IMAGE");
+  }
+
+  const staff = findByColumn(SHEET_NAMES.STAFF, STAFF_COLUMNS.STAFF_ID, staffId);
+  if (!staff || !isActiveStaff(staff)) {
+    return errorResponse("교직원 정보를 찾을 수 없습니다.", "STAFF_NOT_FOUND");
+  }
+
+  const uniqueTrainingIds = Array.from(new Set(trainingIds));
+  const trainings = readRows(SHEET_NAMES.TRAININGS);
+  const targets = readRows(SHEET_NAMES.TARGETS);
+  const attendances = readRows(SHEET_NAMES.ATTENDANCE);
+  const normalizedStaff = normalizeStaffRow_(staff);
+  const rowsToSave = [];
+  const skipped = [];
+
+  uniqueTrainingIds.forEach(function (trainingId) {
+    const training = findInRows_(trainings, TRAINING_COLUMNS.TRAINING_ID, trainingId);
+    if (!training) {
+      skipped.push({ trainingId: trainingId, title: "", reason: "교육 정보 없음" });
+      return;
+    }
+
+    const normalizedTraining = normalizeTrainingRow_(training);
+    const target = targets.find(function (row) {
+      return String(row[TARGET_COLUMNS.TRAINING_ID] || "").trim() === trainingId &&
+        String(row[TARGET_COLUMNS.STAFF_ID] || "").trim() === staffId &&
+        isTruthy(row[TARGET_COLUMNS.IS_TARGET]);
+    });
+
+    if (!target) {
+      skipped.push({ trainingId: trainingId, title: normalizedTraining.title, reason: "교육대상 아님" });
+      return;
+    }
+
+    if (!normalizedTraining.signatureRequired || isTruthy(target[TARGET_COLUMNS.SIGNATURE_EXCLUDED])) {
+      skipped.push({ trainingId: trainingId, title: normalizedTraining.title, reason: "서명 대상 아님" });
+      return;
+    }
+
+    if (findSignature_(trainingId, staffId)) {
+      skipped.push({ trainingId: trainingId, title: normalizedTraining.title, reason: "이미 서명 완료" });
+      return;
+    }
+
+    const attendanceRequired = normalizedTraining.qrEnabled;
+    const attendance = attendances.find(function (row) {
+      return String(row[ATTENDANCE_COLUMNS.TRAINING_ID] || "").trim() === trainingId &&
+        String(row[ATTENDANCE_COLUMNS.STAFF_ID] || "").trim() === staffId;
+    });
+
+    if (attendanceRequired && !attendance) {
+      skipped.push({ trainingId: trainingId, title: normalizedTraining.title, reason: "출석 후 서명 가능" });
+      return;
+    }
+
+    rowsToSave.push({ training: normalizedTraining });
+  });
+
+  if (!rowsToSave.length) {
+    return jsonResponse({
+      status: "skipped",
+      savedCount: 0,
+      skippedCount: skipped.length,
+      rows: [],
+      skipped: skipped
+    });
+  }
+
+  const folderId = getSignatureFolderId_();
+  if (!folderId) {
+    return errorResponse("전자서명 저장 폴더가 설정되지 않았습니다.", "SIGNATURE_FOLDER_NOT_CONFIGURED");
+  }
+
+  const signedAt = new Date();
+  const fileSignatureId = createId_("SIG");
+  const blob = signatureImageBlob_(signatureImage, fileSignatureId + ".png");
+  const folder = DriveApp.getFolderById(folderId);
+  const file = folder.createFile(blob);
+  const fileUrl = file.getUrl();
+  const fileId = file.getId();
+  const uniqueDates = Array.from(new Set(rowsToSave.map(function (row) {
+    return row.training.date || "";
+  }).filter(Boolean)));
+  const noteDate = uniqueDates.length === 1 ? uniqueDates[0] : "복수날짜";
+  const note = "일괄서명 / " + (payload && payload.selectedDate ? String(payload.selectedDate).trim() : noteDate);
+  const rows = rowsToSave.map(function (item) {
+    const signatureId = rowsToSave.length === 1 ? fileSignatureId : createId_("SIG");
+    appendRow(SHEET_NAMES.SIGNATURES, {
+      [SIGNATURE_COLUMNS.SIGNATURE_ID]: signatureId,
+      [SIGNATURE_COLUMNS.TRAINING_ID]: item.training.trainingId,
+      [SIGNATURE_COLUMNS.TRAINING_TITLE]: item.training.title,
+      [SIGNATURE_COLUMNS.STAFF_ID]: staffId,
+      [SIGNATURE_COLUMNS.STAFF_NAME]: normalizedStaff.name,
+      [SIGNATURE_COLUMNS.DEPARTMENT]: normalizedStaff.department,
+      [SIGNATURE_COLUMNS.SIGNED_AT]: signedAt,
+      [SIGNATURE_COLUMNS.FILE_URL]: fileUrl,
+      [SIGNATURE_COLUMNS.FILE_ID]: fileId,
+      [SIGNATURE_COLUMNS.SAVE_STATUS]: "완료",
+      [SIGNATURE_COLUMNS.NOTE]: note
+    });
+
+    return {
+      signatureId: signatureId,
+      trainingId: item.training.trainingId,
+      trainingTitle: item.training.title,
+      date: item.training.date,
+      signedAt: serializeDateTime_(signedAt),
+      fileUrl: fileUrl,
+      fileId: fileId,
+      saveStatus: "완료"
+    };
+  });
+
+  return jsonResponse({
+    status: "saved",
+    savedCount: rows.length,
+    skippedCount: skipped.length,
+    rows: rows,
+    skipped: skipped,
+    staff: normalizedStaff,
+    signedAt: serializeDateTime_(signedAt),
+    fileUrl: fileUrl,
+    fileId: fileId
   });
 }
 
@@ -2120,6 +2360,45 @@ function findSignature_(trainingId, staffId) {
     return String(row[SIGNATURE_COLUMNS.TRAINING_ID] || "").trim() === String(trainingId || "").trim() &&
       String(row[SIGNATURE_COLUMNS.STAFF_ID] || "").trim() === String(staffId || "").trim();
   }) || null;
+}
+
+function signatureDateValue_(dateValue) {
+  const dateText = normalizeDate(dateValue);
+  const timestamp = new Date(dateText).getTime();
+  return Number.isNaN(timestamp) ? Number.POSITIVE_INFINITY : timestamp;
+}
+
+function signatureTodayValue_() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return today.getTime();
+}
+
+function compareDateForSignature_(dateA, dateB) {
+  const today = signatureTodayValue_();
+  const valueA = signatureDateValue_(dateA);
+  const valueB = signatureDateValue_(dateB);
+  const todayA = valueA === today ? 0 : 1;
+  const todayB = valueB === today ? 0 : 1;
+
+  if (todayA !== todayB) {
+    return todayA - todayB;
+  }
+
+  return valueA - valueB;
+}
+
+function compareSignatureRequiredItems_(a, b) {
+  const dateCompare = compareDateForSignature_(a.date, b.date);
+  if (dateCompare !== 0) {
+    return dateCompare;
+  }
+
+  if (a.selectable !== b.selectable) {
+    return a.selectable ? -1 : 1;
+  }
+
+  return String(a.time || "").localeCompare(String(b.time || ""));
 }
 
 function findCertificate_(certificates, trainingId, staffId) {

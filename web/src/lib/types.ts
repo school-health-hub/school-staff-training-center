@@ -126,6 +126,61 @@ export type SaveSignatureResult = {
   saveStatus: string;
 };
 
+export type SignatureRequiredTraining = {
+  trainingId: string;
+  title: string;
+  date: string;
+  time: string;
+  place: string;
+  department?: string;
+  attendanceRequired?: boolean;
+  attendanceDone: boolean;
+  attendedAt?: string;
+  signatureDone: boolean;
+  signedAt?: string;
+  selectable: boolean;
+  blockedReason?: string;
+};
+
+export type SignatureRequiredTrainingGroup = {
+  date: string;
+  items: SignatureRequiredTraining[];
+};
+
+export type SignatureRequiredTrainingsResult = {
+  staff: Staff;
+  groups: SignatureRequiredTrainingGroup[];
+};
+
+export type BulkSignatureRow = {
+  signatureId: string;
+  trainingId: string;
+  trainingTitle: string;
+  date?: string;
+  signedAt: string;
+  fileUrl?: string;
+  fileId?: string;
+  saveStatus: string;
+};
+
+export type BulkSignatureSkippedItem = {
+  trainingId: string;
+  title: string;
+  reason: string;
+};
+
+export type BulkSignatureResult = {
+  status: "saved" | "skipped";
+  savedCount: number;
+  skippedCount: number;
+  rows: BulkSignatureRow[];
+  skipped: BulkSignatureSkippedItem[];
+  staff?: Staff;
+  signedAt?: string;
+  fileUrl?: string;
+  fileId?: string;
+};
+
 export type MyTrainingStatusGroup = "completed" | "incomplete" | "review";
 
 export type MyTrainingStatusItem = {

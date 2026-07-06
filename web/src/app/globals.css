@@ -1220,6 +1220,23 @@ p {
   font-weight: 850;
 }
 
+.checkbox-line {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: 9px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.checkbox-line input,
+.training-card input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--primary);
+}
+
 .admin-auth-shell {
   display: grid;
   min-height: calc(100vh - 48px);
