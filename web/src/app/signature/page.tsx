@@ -14,6 +14,10 @@ const APP_BASE_PATH = "/school-staff-training-center";
 
 type SignatureStep = "setup" | "ready" | "saving" | "complete";
 
+function pageHref(path: string) {
+  return path === "/" ? `${APP_BASE_PATH}/` : `${APP_BASE_PATH}${path}/`;
+}
+
 function getParams() {
   if (typeof window === "undefined") {
     return { trainingId: "", staffId: "" };
@@ -305,7 +309,7 @@ export default function SignaturePage() {
 
     setSaveResult(result.data);
     setStep("complete");
-    setMessage("전자서명이 저장되었습니다.");
+      setMessage("출석과 전자서명이 모두 완료되었습니다.");
   }
 
   return (
@@ -313,7 +317,7 @@ export default function SignaturePage() {
       <div className="dashboard-shell">
         <div className="route-actions">
           <span className="page-toolbar-title">전자서명</span>
-          <a className="ghost-button" href={`${APP_BASE_PATH}/`}>
+          <a className="ghost-button" href={pageHref("/")}>
             홈으로
           </a>
           <button className="ghost-button" onClick={() => window.history.back()} type="button">
@@ -382,6 +386,14 @@ export default function SignaturePage() {
                 <span>{signatureExists.saveStatus || "완료"}</span>
               </div>
             </div>
+            <div className="route-actions">
+              <a className="primary-action" href={pageHref("/my-status")}>
+                내 이수현황 보기
+              </a>
+              <a className="ghost-button" href={pageHref("/")}>
+                홈으로
+              </a>
+            </div>
           </section>
         ) : null}
 
@@ -423,13 +435,18 @@ export default function SignaturePage() {
                 <CheckIcon />
                 <span>저장 완료</span>
               </div>
-              <h2>전자서명이 저장되었습니다.</h2>
+              <h2>출석과 전자서명이 모두 완료되었습니다.</h2>
               <p>
                 {saveResult.trainingTitle || training?.title} · {saveResult.signedAt}
               </p>
-              <a className="ghost-button" href={`${APP_BASE_PATH}/`}>
-                홈으로 돌아가기
-              </a>
+              <div className="route-actions">
+                <a className="primary-action" href={pageHref("/my-status")}>
+                  내 이수현황 보기
+                </a>
+                <a className="ghost-button" href={pageHref("/")}>
+                  홈으로 돌아가기
+                </a>
+              </div>
             </div>
           </section>
         ) : null}
