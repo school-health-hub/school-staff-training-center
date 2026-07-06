@@ -144,7 +144,7 @@ const navItems = [
 const featureCards = [
   {
     title: "QR 출석",
-    description: "연수장에 QR을 스캔하고 전자서명으로 출석을 완료하세요.",
+    description: "연수장에 비치된 QR을 스캔하고 출석을 완료합니다.",
     action: "출석하기",
     href: "/attendance",
     icon: "qr" as IconName,
@@ -159,12 +159,20 @@ const featureCards = [
     tone: "green"
   },
   {
-    title: "이수증/전자서명 제출",
-    description: "외부 연수 이수증을 업로드하고 서명을 한 곳에서 관리합니다.",
-    action: "제출하기",
-    href: "/certificate",
+    title: "전자서명",
+    description: "서명이 필요한 교육을 확인하고 전자서명을 제출합니다.",
+    action: "서명하기",
+    href: "/signature",
     icon: "signature" as IconName,
     tone: "pink"
+  },
+  {
+    title: "이수증 제출",
+    description: "외부 연수 이수증을 업로드하여 담당자 확인을 요청합니다.",
+    action: "제출하기",
+    href: "/certificate",
+    icon: "upload" as IconName,
+    tone: "lavender"
   }
 ];
 
