@@ -125,7 +125,7 @@ export default function TrainingsPage() {
         return;
       }
 
-      const result = await getTrainingList(configResult.config);
+      const result = await getTrainingList(configResult.config, { includeInactive: true });
 
       if (ignore) {
         return;

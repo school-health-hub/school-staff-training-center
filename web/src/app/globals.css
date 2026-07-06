@@ -837,6 +837,21 @@ p {
   box-shadow: var(--shadow);
 }
 
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--navy);
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.checkbox-row input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--primary);
+}
+
 .setup-progress {
   display: grid;
   gap: 14px;

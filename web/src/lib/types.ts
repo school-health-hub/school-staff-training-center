@@ -50,6 +50,7 @@ export type Training = {
   certificateRequired?: boolean;
   status?: string;
   activeStatus: string;
+  note?: string;
 };
 
 export type Staff = {

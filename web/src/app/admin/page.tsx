@@ -1,11 +1,12 @@
 import { AdminAuthGate, AdminLogoutButton } from "@/components/admin-auth-gate";
+import { getBasePath } from "@/lib/paths";
 
-const APP_BASE_PATH = "/school-staff-training-center";
+const APP_BASE_PATH = getBasePath();
 
 const adminItems = [
   {
     title: "QR 출력",
-    description: "교육별 QR을 생성하고 출력합니다.",
+    description: "교육별 출석 QR을 생성하고 인쇄합니다.",
     href: "/admin/qr"
   },
   {
@@ -17,6 +18,11 @@ const adminItems = [
     title: "최종 서명부",
     description: "감사와 증빙용 최종 서명부를 생성합니다.",
     href: "/admin/final-sheet"
+  },
+  {
+    title: "교육목록 관리",
+    description: "교육을 등록, 수정하고 활성상태를 관리합니다.",
+    href: "/admin/trainings"
   },
   {
     title: "교직원 명단",
@@ -55,51 +61,51 @@ export default function AdminPage() {
   return (
     <AdminAuthGate>
       <main className="page">
-      <div className="dashboard-shell">
-        <div className="route-actions">
-          <span className="page-toolbar-title">관리자 메뉴</span>
-          <a className="ghost-button" href={`${APP_BASE_PATH}/`}>
-            홈으로
-          </a>
-          <AdminLogoutButton />
+        <div className="dashboard-shell">
+          <div className="route-actions">
+            <span className="page-toolbar-title">관리자 메뉴</span>
+            <a className="ghost-button" href={`${APP_BASE_PATH}/`}>
+              홈으로
+            </a>
+            <AdminLogoutButton />
+          </div>
+
+          <section className="today-card" aria-label="관리자 메뉴">
+            <div className="today-copy">
+              <div className="section-kicker">
+                <AdminIcon />
+                <span>ADMIN DASHBOARD</span>
+              </div>
+              <h1>교육 운영 도구를 관리합니다.</h1>
+              <p>교육목록, QR 출력, 출석현황, 최종 서명부, 교직원 명단과 학교 설정을 한곳에서 관리합니다.</p>
+            </div>
+          </section>
+
+          <section className="admin-section" aria-label="관리자 기능">
+            <div className="section-head">
+              <div>
+                <h2>관리자 기능</h2>
+                <p>필요한 관리 작업을 선택해 주세요.</p>
+              </div>
+              <span className="permission-note">관리 권한이 있는 사용자만 이용해 주세요.</span>
+            </div>
+
+            <div className="admin-grid">
+              {adminItems.map((item) => (
+                <a className="admin-card" href={pageHref(item.href)} key={item.href}>
+                  <span className="admin-icon">
+                    <AdminIcon />
+                  </span>
+                  <span>
+                    <strong>{item.title}</strong>
+                    <small>{item.description}</small>
+                  </span>
+                  <ChevronIcon />
+                </a>
+              ))}
+            </div>
+          </section>
         </div>
-
-        <section className="today-card" aria-label="관리자 메뉴">
-          <div className="today-copy">
-            <div className="section-kicker">
-              <AdminIcon />
-              <span>관리자 메뉴</span>
-            </div>
-            <h1>교육 운영 도구를 관리합니다.</h1>
-            <p>QR 출력, 출석현황, 최종 서명부, 학교 설정을 한 곳에서 확인합니다.</p>
-          </div>
-        </section>
-
-        <section className="admin-section" aria-label="관리자 기능">
-          <div className="section-head">
-            <div>
-              <h2>관리자 기능</h2>
-              <p>필요한 관리 작업을 선택해주세요.</p>
-            </div>
-            <span className="permission-note">관리 권한이 있는 사용자만 이용해주세요.</span>
-          </div>
-
-          <div className="admin-grid">
-            {adminItems.map((item) => (
-              <a className="admin-card" href={pageHref(item.href)} key={item.href}>
-                <span className="admin-icon">
-                  <AdminIcon />
-                </span>
-                <span>
-                  <strong>{item.title}</strong>
-                  <small>{item.description}</small>
-                </span>
-                <ChevronIcon />
-              </a>
-            ))}
-          </div>
-        </section>
-      </div>
       </main>
     </AdminAuthGate>
   );

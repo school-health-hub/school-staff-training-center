@@ -37,6 +37,9 @@ export type AppsScriptAction =
   | "getSchoolConfig"
   | "getTrainingList"
   | "getTrainingDetail"
+  | "createTraining"
+  | "updateTraining"
+  | "updateTrainingStatus"
   | "getStaffDetail"
   | "getStaffByNameDept"
   | "getStaffList"
@@ -250,15 +253,60 @@ export async function updateSchoolConfig(
   }
 }
 
-export async function getTrainingList(config: AppConfig): Promise<{ data: Training[]; error?: string }> {
+export async function getTrainingList(config: AppConfig, options: { includeInactive?: boolean } = {}): Promise<{ data: Training[]; error?: string }> {
   try {
-    const payload = await requestAppsScript<{ trainings?: Training[] } | Training[]>(config, "getTrainingList");
+    const payload = await requestAppsScript<{ trainings?: Training[] } | Training[]>(config, "getTrainingList", options);
     const trainings = Array.isArray(payload) ? payload : payload.trainings ?? [];
     return { data: trainings.map(normalizeTraining) };
   } catch (error) {
     return {
       data: [],
       error: error instanceof Error ? error.message : "교육목록을 불러오지 못했습니다."
+    };
+  }
+}
+
+export type TrainingMutation = Partial<Training> & {
+  note?: string;
+};
+
+export async function createTraining(config: AppConfig, training: TrainingMutation): Promise<{ data?: Training; error?: string }> {
+  try {
+    const data = await requestAppsScript<Training>(config, "createTraining", { training });
+    return { data: normalizeTraining(data) };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "교육을 추가하지 못했습니다."
+    };
+  }
+}
+
+export async function updateTraining(
+  config: AppConfig,
+  trainingId: string,
+  training: TrainingMutation
+): Promise<{ data?: Training; error?: string }> {
+  try {
+    const data = await requestAppsScript<Training>(config, "updateTraining", { trainingId, training });
+    return { data: normalizeTraining(data) };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "교육 정보를 저장하지 못했습니다."
+    };
+  }
+}
+
+export async function updateTrainingStatus(
+  config: AppConfig,
+  trainingId: string,
+  status: string
+): Promise<{ data?: Training; error?: string }> {
+  try {
+    const data = await requestAppsScript<Training>(config, "updateTrainingStatus", { trainingId, status });
+    return { data: normalizeTraining(data) };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "교육 상태를 변경하지 못했습니다."
     };
   }
 }
@@ -651,6 +699,7 @@ function normalizeTraining(training: Partial<Training>): Training {
     signatureRequired: Boolean(training.signatureRequired),
     certificateRequired: Boolean(training.certificateRequired),
     status,
-    activeStatus: status
+    activeStatus: status,
+    note: training.note ?? ""
   };
 }

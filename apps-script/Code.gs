@@ -142,6 +142,9 @@ const ACTIONS = {
   GET_SCHOOL_CONFIG: "getSchoolConfig",
   GET_TRAINING_LIST: "getTrainingList",
   GET_TRAINING_DETAIL: "getTrainingDetail",
+  CREATE_TRAINING: "createTraining",
+  UPDATE_TRAINING: "updateTraining",
+  UPDATE_TRAINING_STATUS: "updateTrainingStatus",
   GET_STAFF_DETAIL: "getStaffDetail",
   GET_STAFF_BY_NAME_DEPT: "getStaffByNameDept",
   GET_STAFF_LIST: "getStaffList",
@@ -242,6 +245,12 @@ function doPost(e) {
         return getTrainingList(payload);
       case ACTIONS.GET_TRAINING_DETAIL:
         return getTrainingDetail(payload);
+      case ACTIONS.CREATE_TRAINING:
+        return createTraining(payload);
+      case ACTIONS.UPDATE_TRAINING:
+        return updateTraining(payload);
+      case ACTIONS.UPDATE_TRAINING_STATUS:
+        return updateTrainingStatus(payload);
       case ACTIONS.GET_STAFF_DETAIL:
         return getStaffDetail(payload);
       case ACTIONS.GET_STAFF_BY_NAME_DEPT:
@@ -335,6 +344,105 @@ function getPublicSchoolConfig_() {
     activeSemester: config[CONFIG_KEYS.ACTIVE_SEMESTER] || config.activeSemester || "",
     privacyNotice: config[CONFIG_KEYS.PRIVACY_NOTICE] || ""
   };
+}
+
+function createTraining(payload) {
+  const input = payload && payload.training ? payload.training : payload || {};
+  const title = String(input.title || "").trim();
+
+  if (!title) {
+    return errorResponse("교육명을 입력해 주세요.", "MISSING_TRAINING_TITLE");
+  }
+
+  const row = {};
+  row[TRAINING_COLUMNS.TRAINING_ID] = generateTrainingId_();
+  row[TRAINING_COLUMNS.TITLE] = title;
+  row[TRAINING_COLUMNS.DATE] = String(input.date || "").trim();
+  row[TRAINING_COLUMNS.TIME] = String(input.time || "").trim();
+  row[TRAINING_COLUMNS.LOCATION] = String(input.place || input.location || "").trim();
+  row[TRAINING_COLUMNS.DEPARTMENT] = String(input.department || "").trim();
+  row[TRAINING_COLUMNS.CATEGORY] = String(input.category || "").trim();
+  row[TRAINING_COLUMNS.QR_ENABLED] = toYn_(input.qrEnabled);
+  row[TRAINING_COLUMNS.SIGNATURE_REQUIRED] = toYn_(input.signatureRequired);
+  row[TRAINING_COLUMNS.CERTIFICATE_REQUIRED] = toYn_(input.certificateRequired);
+  row[TRAINING_COLUMNS.ACTIVE_STATUS] = String(input.status || input.activeStatus || "").trim() || "활성";
+  row[TRAINING_COLUMNS.NOTE] = String(input.note || "").trim();
+
+  appendRow(SHEET_NAMES.TRAININGS, row);
+  return jsonResponse(normalizeTrainingRow_(row));
+}
+
+function updateTraining(payload) {
+  const trainingId = String(payload && payload.trainingId || "").trim();
+  const input = payload && payload.training ? payload.training : {};
+
+  if (!trainingId) {
+    return errorResponse("교육ID가 필요합니다.", "MISSING_TRAINING_ID");
+  }
+
+  const updates = {};
+  [
+    ["title", TRAINING_COLUMNS.TITLE],
+    ["date", TRAINING_COLUMNS.DATE],
+    ["time", TRAINING_COLUMNS.TIME],
+    ["department", TRAINING_COLUMNS.DEPARTMENT],
+    ["category", TRAINING_COLUMNS.CATEGORY],
+    ["note", TRAINING_COLUMNS.NOTE]
+  ].forEach(function (pair) {
+    if (input[pair[0]] !== undefined) {
+      updates[pair[1]] = String(input[pair[0]] || "").trim();
+    }
+  });
+
+  if (input.place !== undefined || input.location !== undefined) {
+    updates[TRAINING_COLUMNS.LOCATION] = String(input.place || input.location || "").trim();
+  }
+
+  if (input.qrEnabled !== undefined) {
+    updates[TRAINING_COLUMNS.QR_ENABLED] = toYn_(input.qrEnabled);
+  }
+
+  if (input.signatureRequired !== undefined) {
+    updates[TRAINING_COLUMNS.SIGNATURE_REQUIRED] = toYn_(input.signatureRequired);
+  }
+
+  if (input.certificateRequired !== undefined) {
+    updates[TRAINING_COLUMNS.CERTIFICATE_REQUIRED] = toYn_(input.certificateRequired);
+  }
+
+  if (input.status !== undefined || input.activeStatus !== undefined) {
+    updates[TRAINING_COLUMNS.ACTIVE_STATUS] = String(input.status || input.activeStatus || "").trim();
+  }
+
+  const updated = updateTrainingRow_(trainingId, updates);
+  if (!updated) {
+    return errorResponse("교육 정보를 찾을 수 없습니다.", "TRAINING_NOT_FOUND");
+  }
+
+  return jsonResponse(updated);
+}
+
+function updateTrainingStatus(payload) {
+  const trainingId = String(payload && payload.trainingId || "").trim();
+  const status = String(payload && payload.status || "").trim();
+
+  if (!trainingId) {
+    return errorResponse("교육ID가 필요합니다.", "MISSING_TRAINING_ID");
+  }
+
+  if (!status) {
+    return errorResponse("변경할 활성상태를 입력해 주세요.", "MISSING_TRAINING_STATUS");
+  }
+
+  const updated = updateTrainingRow_(trainingId, {
+    [TRAINING_COLUMNS.ACTIVE_STATUS]: status
+  });
+
+  if (!updated) {
+    return errorResponse("교육 정보를 찾을 수 없습니다.", "TRAINING_NOT_FOUND");
+  }
+
+  return jsonResponse(updated);
 }
 
 /**
@@ -2283,7 +2391,8 @@ function normalizeTrainingRow_(row) {
     signatureRequired: isTruthy(row[TRAINING_COLUMNS.SIGNATURE_REQUIRED]),
     certificateRequired: isTruthy(row[TRAINING_COLUMNS.CERTIFICATE_REQUIRED]),
     status: status,
-    activeStatus: status
+    activeStatus: status,
+    note: row[TRAINING_COLUMNS.NOTE] || ""
   };
 }
 
@@ -2307,6 +2416,45 @@ function normalizeStaffAdminRow_(row) {
     role: row[STAFF_COLUMNS.ROLE] || "교직원",
     note: row[STAFF_COLUMNS.NOTE] || ""
   };
+}
+
+function updateTrainingRow_(trainingId, updates) {
+  const sheet = getSheetByName(SHEET_NAMES.TRAININGS);
+  const values = sheet.getDataRange().getValues();
+  const headerRowIndex = findHeaderRowIndex_(values, getRequiredHeadersForSheet_(SHEET_NAMES.TRAININGS));
+  const headers = values[headerRowIndex] || [];
+  const trainingIdColumnIndex = findFirstHeaderIndex_(headers, [TRAINING_COLUMNS.TRAINING_ID]);
+
+  if (trainingIdColumnIndex === -1) {
+    return null;
+  }
+
+  for (let rowIndex = headerRowIndex + 1; rowIndex < values.length; rowIndex += 1) {
+    if (String(values[rowIndex][trainingIdColumnIndex] || "").trim() !== trainingId) {
+      continue;
+    }
+
+    Object.keys(updates).forEach(function (columnName) {
+      const columnIndex = findFirstHeaderIndex_(headers, [columnName]);
+      if (columnIndex !== -1) {
+        sheet.getRange(rowIndex + 1, columnIndex + 1).setValue(updates[columnName]);
+      }
+    });
+
+    const updatedRow = {};
+    headers.forEach(function (header, index) {
+      if (!header) {
+        return;
+      }
+
+      const headerName = String(header);
+      updatedRow[headerName] = updates[headerName] !== undefined ? updates[headerName] : values[rowIndex][index];
+    });
+
+    return normalizeTrainingRow_(updatedRow);
+  }
+
+  return null;
 }
 
 function updateStaffRow_(staffId, updates) {
@@ -2796,6 +2944,39 @@ function createAuthCode_() {
 
 function createId_(prefix) {
   return prefix + "-" + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyyMMdd-HHmmss") + "-" + Utilities.getUuid().slice(0, 8);
+}
+
+function toYn_(value) {
+  return isTruthy(value) ? "Y" : "N";
+}
+
+function trainingYear_() {
+  const config = getConfigMap_();
+  const semester = String(getConfigValue_(config, ["activeSemester", CONFIG_KEYS.ACTIVE_SEMESTER]) || "").trim();
+  const match = semester.match(/20\d{2}/);
+
+  if (match) {
+    return match[0];
+  }
+
+  return Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy");
+}
+
+function generateTrainingId_() {
+  const year = trainingYear_();
+  const rows = readRows(SHEET_NAMES.TRAININGS);
+  let maxSequence = 0;
+  const pattern = new RegExp("^TRN-" + year + "-(\\d+)$", "i");
+
+  rows.forEach(function (row) {
+    const trainingId = String(row[TRAINING_COLUMNS.TRAINING_ID] || "").trim();
+    const match = trainingId.match(pattern);
+    if (match) {
+      maxSequence = Math.max(maxSequence, Number(match[1]) || 0);
+    }
+  });
+
+  return "TRN-" + year + "-" + String(maxSequence + 1).padStart(3, "0");
 }
 
 function findInRows_(rows, columnName, value) {
