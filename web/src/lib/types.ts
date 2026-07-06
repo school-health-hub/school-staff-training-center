@@ -259,6 +259,7 @@ export type CertificateSubmissionResult = {
   staffId: string;
   staffName: string;
   department: string;
+  position?: string;
   submittedAt: string;
   fileUrl?: string;
   fileId?: string;

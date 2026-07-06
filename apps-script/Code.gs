@@ -77,6 +77,7 @@ const TARGET = {
   IS_TARGET: "대상여부",
   REQUIRED: "필수여부",
   SIGNATURE_EXCLUDED: "서명제외여부",
+  CERTIFICATE_TARGET: "이수증제출대상여부",
   NOTE: "비고"
 };
 
@@ -119,6 +120,7 @@ const CERTIFICATE = {
   STAFF_ID: "교직원ID",
   STAFF_NAME: "성명",
   DEPARTMENT: "부서",
+  POSITION: "직책",
   SUBMITTED_AT: "제출일시",
   COMPLETED_DATE: "이수일자",
   ISSUER: "이수기관",
@@ -127,6 +129,7 @@ const CERTIFICATE = {
   FILE_ID: "파일ID",
   STATUS: "상태",
   REVIEWER: "확인자",
+  REVIEWED_AT: "확인일시",
   NOTE: "비고"
 };
 
@@ -704,6 +707,7 @@ function getCertificateRequiredTrainings(payload) {
     if (!training) return null;
     var normalized = normalizeTraining_(training);
     if (!normalized.certificateRequired) return null;
+    if (target[TARGET.CERTIFICATE_TARGET] !== undefined && target[TARGET.CERTIFICATE_TARGET] !== "" && !normalizeBoolean(target[TARGET.CERTIFICATE_TARGET])) return null;
     var certificate = findCertificate_(normalized.trainingId, staffId, certificates);
     return {
       trainingId: normalized.trainingId,
@@ -743,6 +747,11 @@ function saveCertificateSubmission(payload) {
   if (!staff || !isActiveStaff_(staff)) return errorResponse("교직원 정보를 찾을 수 없습니다.", "STAFF_NOT_FOUND");
   var normalizedTraining = normalizeTraining_(training);
   if (!normalizedTraining.certificateRequired) return errorResponse("이수증 제출 대상 교육이 아닙니다.", "CERTIFICATE_NOT_REQUIRED");
+  var target = findTarget_(trainingId, staffId);
+  if (!target) return errorResponse("교육 대상자가 아닙니다.", "NOT_TRAINING_TARGET");
+  if (target[TARGET.CERTIFICATE_TARGET] !== undefined && target[TARGET.CERTIFICATE_TARGET] !== "" && !normalizeBoolean(target[TARGET.CERTIFICATE_TARGET])) {
+    return errorResponse("이수증 제출 대상자가 아닙니다.", "CERTIFICATE_TARGET_EXCLUDED");
+  }
   var folderId = certificateFolderId_(normalizedTraining);
   if (!folderId) return errorResponse("이수증 저장 폴더가 설정되지 않았습니다. 관리자에게 문의해 주세요.", "CERTIFICATE_FOLDER_NOT_CONFIGURED");
   var submittedAt = new Date();
@@ -757,6 +766,7 @@ function saveCertificateSubmission(payload) {
   row[CERTIFICATE.STAFF_ID] = staffId;
   row[CERTIFICATE.STAFF_NAME] = text_(staff[STAFF.NAME]);
   row[CERTIFICATE.DEPARTMENT] = text_(staff[STAFF.DEPARTMENT]);
+  row[CERTIFICATE.POSITION] = text_(staff[STAFF.POSITION]);
   row[CERTIFICATE.SUBMITTED_AT] = submittedAt;
   row[CERTIFICATE.COMPLETED_DATE] = text_(payload.completedDate);
   row[CERTIFICATE.ISSUER] = text_(payload.issuer);
@@ -765,6 +775,7 @@ function saveCertificateSubmission(payload) {
   row[CERTIFICATE.FILE_ID] = file.getId();
   row[CERTIFICATE.STATUS] = "승인대기";
   row[CERTIFICATE.REVIEWER] = "";
+  row[CERTIFICATE.REVIEWED_AT] = "";
   row[CERTIFICATE.NOTE] = "";
   appendRowByHeader(SHEETS.CERTIFICATES, row);
   return successResponse({
@@ -774,6 +785,7 @@ function saveCertificateSubmission(payload) {
     staffId: staffId,
     staffName: text_(staff[STAFF.NAME]),
     department: text_(staff[STAFF.DEPARTMENT]),
+    position: text_(staff[STAFF.POSITION]),
     submittedAt: normalizeDateTime_(submittedAt),
     fileUrl: file.getUrl(),
     fileId: file.getId(),
@@ -1158,9 +1170,13 @@ function aliases_() {
   aliases[TARGET.IS_TARGET] = ["대상", "대상여부", "isTarget"];
   aliases[TARGET.REQUIRED] = ["필수", "필수여부", "required"];
   aliases[TARGET.SIGNATURE_EXCLUDED] = ["서명제외", "서명제외여부", "signatureExcluded"];
+  aliases[TARGET.CERTIFICATE_TARGET] = ["이수증 대상", "이수증대상", "이수증제출대상", "certificateTarget", "certificateRequiredForStaff"];
   aliases[CERTIFICATE.ID] = ["이수증ID", "제출ID", "certificateId", "submissionId"];
+  aliases[CERTIFICATE.DEPARTMENT] = ["소속부서", "부서", "department"];
+  aliases[CERTIFICATE.POSITION] = ["직위", "직책", "position"];
   aliases[CERTIFICATE.STATUS] = ["제출상태", "승인상태", "처리상태", "status"];
   aliases[CERTIFICATE.FILE_ID] = ["파일ID", "이수증파일ID", "certificateFileId"];
+  aliases[CERTIFICATE.REVIEWED_AT] = ["확인일", "검토일시", "reviewedAt"];
   aliases[FINAL.SIGNATURE_FILE_URL] = ["서명파일URL", "전자서명파일URL"];
   return aliases;
 }
