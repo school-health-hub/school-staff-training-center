@@ -21,9 +21,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    defaults:
-      run:
-        working-directory: web
+      pages: write
+    env:
+      NEXT_PUBLIC_BASE_PATH: /school-staff-training-center
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -35,28 +35,28 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
 
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --prefix web
 
       - name: Lint
-        run: npm run lint
+        run: npm run lint --prefix web
 
       - name: Typecheck
-        run: npm run typecheck
+        run: npm run typecheck --prefix web
 
       - name: Build static export
-        run: npm run build
+        run: npm run build --prefix web
 
-      - name: Verify app config artifact
-        run: test -f out/app-config.json
-
-      - name: Configure Pages
-        uses: actions/configure-pages@v6
+      - name: Check build output
+        run: test -f web/out/index.html
 
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v5
+        uses: actions/upload-pages-artifact@v3
         with:
-          path: web/out
+          path: ./web/out
 
   deploy:
     name: Deploy to GitHub Pages
@@ -71,4 +71,4 @@ jobs:
     steps:
       - name: Deploy Pages
         id: deployment
-        uses: actions/deploy-pages@v5
+        uses: actions/deploy-pages@v4
