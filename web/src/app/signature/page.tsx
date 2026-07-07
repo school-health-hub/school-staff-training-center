@@ -113,7 +113,7 @@ export default function SignaturePage() {
       }
 
       if (!configResult.ok) {
-        setMessage(configResult.message);
+        setMessage("교육센터 연결을 준비 중입니다. 담당자에게 확인해 주세요.");
         setStep("setup");
         return;
       }
@@ -271,7 +271,7 @@ export default function SignaturePage() {
 
   async function loadSignatureTargets(nextStaff: Staff, nextExcludeSigned = excludeSigned) {
     if (!runtimeConfig) {
-      setMessage("app-config.json 설정을 먼저 확인해 주세요.");
+      setMessage("교육센터 연결을 준비 중입니다. 담당자에게 확인해 주세요.");
       return;
     }
 
@@ -451,7 +451,7 @@ export default function SignaturePage() {
     <main className="page">
       <div className="dashboard-shell">
         <div className="route-actions">
-          <span className="page-toolbar-title">전자서명</span>
+          <span className="page-toolbar-title">교육 전자서명</span>
           <a className="ghost-button" href={pageHref("/")}>
             홈으로
           </a>
@@ -460,13 +460,13 @@ export default function SignaturePage() {
           </button>
         </div>
 
-        <section className="today-card" aria-label="전자서명">
+        <section className="today-card" aria-label="교육 전자서명">
           <div className="today-copy">
             <div className="section-kicker">
               <CheckIcon />
-              <span>전자서명</span>
+              <span>교육 전자서명</span>
             </div>
-            <h1>{training?.title ?? "전자서명"}</h1>
+            <h1>{training?.title ?? "교육 전자서명"}</h1>
             <p>{singleMode ? "단일 교육 전자서명을 제출합니다." : "여러 교육을 선택하고 한 번의 서명으로 전자서명을 제출합니다."}</p>
           </div>
         </section>

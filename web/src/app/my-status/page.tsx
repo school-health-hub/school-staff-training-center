@@ -83,7 +83,7 @@ export default function MyStatusPage() {
 
     if (!configResult.ok) {
       setStep("ready");
-      setMessage(configResult.message);
+      setMessage("교육센터 연결을 준비 중입니다. 담당자에게 확인해 주세요.");
       return;
     }
 

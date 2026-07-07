@@ -93,7 +93,7 @@ export default function CertificatePage() {
     const configResult = runtimeConfig ? { ok: true as const, config: runtimeConfig } : await loadAppConfig();
 
     if (!configResult.ok) {
-      setMessage(configResult.message);
+      setMessage("교육센터 연결을 준비 중입니다. 담당자에게 확인해 주세요.");
       return null;
     }
 

@@ -137,7 +137,7 @@ const iconPaths: Record<IconName, ReactNode> = {
 const navItems = [
   { title: "홈", href: "/", icon: "home" as IconName, active: true },
   { title: "교육목록", href: "/trainings", icon: "list" as IconName },
-  { title: "전자서명", href: "/signature", icon: "signature" as IconName },
+  { title: "교육 전자서명", href: "/signature", icon: "signature" as IconName },
   { title: "내 이수현황", href: "/my-status", icon: "status" as IconName },
   { title: "이수증 제출", href: "/certificate", icon: "upload" as IconName }
 ];
@@ -152,7 +152,7 @@ const featureCards = [
     tone: "green"
   },
   {
-    title: "전자서명",
+    title: "교육 전자서명",
     description: "서명이 필요한 교육을 확인하고 전자서명을 제출합니다.",
     action: "서명하기",
     href: "/signature",
@@ -227,7 +227,6 @@ export default function HomePage() {
   const [config, setConfig] = useState<SchoolConfig>(DEFAULT_CONFIG);
   const [trainings, setTrainings] = useState<Training[]>([]);
   const [notice, setNotice] = useState("학교 설정을 불러오는 중입니다.");
-  const [setupMessage, setSetupMessage] = useState<string>();
 
   useEffect(() => {
     let ignore = false;
@@ -242,12 +241,9 @@ export default function HomePage() {
       setConfig(runtimeConfig.schoolConfig);
 
       if (!runtimeConfig.ok) {
-        setSetupMessage(runtimeConfig.message);
         setNotice("");
         return;
       }
-
-      setSetupMessage(undefined);
 
       const [configResult, trainingResult] = await Promise.all([
         getSchoolConfig(runtimeConfig.config),
@@ -330,12 +326,6 @@ export default function HomePage() {
             </a>
           ))}
         </nav>
-
-        {setupMessage ? (
-          <div className="soft-alert" role="alert">
-            {setupMessage} GitHub Pages 배포 파일에 app-config.json을 추가하면 학교별 설정을 빌드 없이 바꿀 수 있습니다.
-          </div>
-        ) : null}
 
         {notice ? (
           <div className="soft-alert" role="status">
@@ -444,9 +434,10 @@ export default function HomePage() {
         <section className="qr-guide-card" aria-label="현장 QR 출석 안내">
           <div className="section-kicker">
             <Icon name="qr" />
-            <span>현장 QR 출석</span>
+            <span>현장 QR 출석 안내</span>
           </div>
-          <p>교육 당일 연수장에 비치된 QR을 스캔하면 출석 화면이 열립니다.</p>
+          <p>교육 당일에는 연수장에 비치된 QR을 휴대폰으로 스캔하면 해당 교육의 전자서명 화면이 열립니다.</p>
+          <small>QR 출석은 교육 현장에서만 진행됩니다.</small>
         </section>
 
         <footer className="footer-bar">

@@ -1256,6 +1256,13 @@ p {
   line-height: 1.6;
 }
 
+.qr-guide-card small {
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.5;
+}
+
 .section-head {
   display: grid;
   gap: 14px;

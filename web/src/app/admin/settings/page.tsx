@@ -6,6 +6,8 @@ import type { AppConfig, SchoolConfig, SchoolConfigUpdate } from "@/lib/types";
 import { useEffect, useMemo, useState, type ChangeEvent, type CSSProperties, type FormEvent } from "react";
 
 const APP_BASE_PATH = "/school-staff-training-center";
+const APPS_SCRIPT_URL_MISSING_MESSAGE =
+  "Apps Script URL이 설정되지 않았습니다. app-config.json에 학교별 Apps Script URL을 입력해야 실제 데이터 연동이 가능합니다.";
 
 type SettingsForm = {
   schoolName: string;
@@ -141,7 +143,7 @@ export default function AdminSettingsPage() {
       const runtime = await loadAppConfig();
 
       if (!runtime.ok) {
-        setMessage(runtime.message);
+        setMessage(APPS_SCRIPT_URL_MISSING_MESSAGE);
         setMessageTone("error");
         setForm(formFromSchoolConfig(runtime.schoolConfig));
         setLoading(false);
@@ -171,7 +173,7 @@ export default function AdminSettingsPage() {
     event.preventDefault();
 
     if (!appConfig) {
-      setMessage("app-config.json의 Apps Script URL을 먼저 확인해주세요.");
+      setMessage(APPS_SCRIPT_URL_MISSING_MESSAGE);
       setMessageTone("error");
       return;
     }
