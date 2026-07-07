@@ -60,6 +60,8 @@ export type Training = {
   note?: string;
 };
 
+export type CompletionMethod = "qr-signature" | "certificate-upload" | "admin-check";
+
 export type Staff = {
   staffId: string;
   name: string;
@@ -90,6 +92,34 @@ export type TrainingTargetResult = {
   isTarget: boolean;
   signatureExcluded?: boolean;
   required?: boolean;
+};
+
+export type AdminTrainingTarget = {
+  trainingId: string;
+  staffId: string;
+  isTarget: boolean;
+  required: boolean;
+  signatureExcluded?: boolean;
+  certificateTarget?: boolean;
+  note?: string;
+};
+
+export type TrainingTargetsResult = {
+  targets: AdminTrainingTarget[];
+};
+
+export type TrainingTargetsMutationItem = {
+  staffId: string;
+  isTarget: boolean;
+  required: boolean;
+  certificateTarget?: boolean;
+  note?: string;
+};
+
+export type TrainingTargetsMutationResult = {
+  trainingId: string;
+  updatedCount: number;
+  targets: AdminTrainingTarget[];
 };
 
 export type DuplicateAttendanceResult = {

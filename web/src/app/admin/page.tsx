@@ -25,6 +25,11 @@ const adminItems = [
     href: "/admin/trainings"
   },
   {
+    title: "교육대상 관리",
+    description: "교육별 대상자를 지정하고 이수방식에 맞는 대상 여부를 관리합니다.",
+    href: "/admin/targets"
+  },
+  {
     title: "교직원 명단",
     description: "교직원 정보를 확인하고 재직상태를 관리합니다.",
     href: "/admin/staff"

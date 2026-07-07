@@ -20,6 +20,9 @@ import type {
   Staff,
   StaffListResult,
   Training,
+  TrainingTargetsMutationItem,
+  TrainingTargetsMutationResult,
+  TrainingTargetsResult,
   TrainingTargetResult
 } from "@/lib/types";
 import { getAssetPath } from "@/lib/paths";
@@ -49,6 +52,7 @@ export type AppsScriptAction =
   | "verifyAdminCode"
   | "verifyStaff"
   | "getTrainingTargets"
+  | "updateTrainingTargets"
   | "checkTrainingTarget"
   | "checkDuplicateAttendance"
   | "saveQrAttendance"
@@ -448,6 +452,38 @@ export async function checkTrainingTarget(
   } catch (error) {
     return {
       error: error instanceof Error ? error.message : "교육대상 여부를 확인하지 못했습니다."
+    };
+  }
+}
+
+export async function getTrainingTargets(
+  config: AppConfig,
+  trainingId: string
+): Promise<{ data?: TrainingTargetsResult; error?: string }> {
+  try {
+    const payload = await requestAppsScript<TrainingTargetsResult | TrainingTargetsResult["targets"]>(config, "getTrainingTargets", {
+      trainingId,
+      includeInactiveTargets: true
+    });
+    return { data: Array.isArray(payload) ? { targets: payload } : payload };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "교육대상 명단을 불러오지 못했습니다."
+    };
+  }
+}
+
+export async function updateTrainingTargets(
+  config: AppConfig,
+  trainingId: string,
+  targets: TrainingTargetsMutationItem[]
+): Promise<{ data?: TrainingTargetsMutationResult; error?: string }> {
+  try {
+    const data = await requestAppsScript<TrainingTargetsMutationResult>(config, "updateTrainingTargets", { trainingId, targets });
+    return { data };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "교육대상 명단을 저장하지 못했습니다."
     };
   }
 }

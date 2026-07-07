@@ -171,6 +171,7 @@ const ACTIONS = {
   deactivateStaff: deactivateStaff,
   verifyStaff: verifyStaff,
   getTrainingTargets: getTrainingTargets,
+  updateTrainingTargets: updateTrainingTargets,
   checkTrainingTarget: checkTrainingTarget,
   checkDuplicateAttendance: checkDuplicateAttendance,
   saveQrAttendance: saveQrAttendance,
@@ -336,7 +337,7 @@ function createTraining(payload) {
   row[TRAINING.DEPARTMENT] = text_(input.department);
   row[TRAINING.CATEGORY] = text_(input.category);
   row[TRAINING.QR_ENABLED] = yn_(input.qrEnabled);
-  row[TRAINING.SIGNATURE_REQUIRED] = input.signatureRequired === undefined ? "Y" : yn_(input.signatureRequired);
+  row[TRAINING.SIGNATURE_REQUIRED] = normalizeBoolean(input.qrEnabled) ? "Y" : (input.signatureRequired === undefined ? "Y" : yn_(input.signatureRequired));
   row[TRAINING.CERTIFICATE_REQUIRED] = yn_(input.certificateRequired);
   row[TRAINING.STATUS] = text_(input.status || input.activeStatus) || "활성";
   row[TRAINING.FOLDER_MODE] = text_(input.folderMode);
@@ -352,6 +353,8 @@ function createTraining(payload) {
 function updateTraining(payload) {
   var trainingId = requireText_(payload.trainingId, "교육ID가 필요합니다.", "MISSING_TRAINING_ID");
   var input = payload.training || {};
+  var existingTraining = findTraining_(trainingId);
+  if (!existingTraining) return errorResponse("교육 정보를 찾을 수 없습니다.", "TRAINING_NOT_FOUND");
   var updates = {};
   copyIfDefined_(updates, input, "title", TRAINING.TITLE);
   copyIfDefined_(updates, input, "date", TRAINING.DATE);
@@ -367,6 +370,9 @@ function updateTraining(payload) {
   if (input.place !== undefined || input.location !== undefined) updates[TRAINING.PLACE] = text_(input.place || input.location);
   if (input.qrEnabled !== undefined) updates[TRAINING.QR_ENABLED] = yn_(input.qrEnabled);
   if (input.signatureRequired !== undefined) updates[TRAINING.SIGNATURE_REQUIRED] = yn_(input.signatureRequired);
+  if (normalizeBoolean(input.qrEnabled) || (input.qrEnabled === undefined && normalizeBoolean(existingTraining[TRAINING.QR_ENABLED]))) {
+    updates[TRAINING.SIGNATURE_REQUIRED] = "Y";
+  }
   if (input.certificateRequired !== undefined) updates[TRAINING.CERTIFICATE_REQUIRED] = yn_(input.certificateRequired);
   if (input.status !== undefined || input.activeStatus !== undefined) updates[TRAINING.STATUS] = text_(input.status || input.activeStatus);
   var updated = updateRowByKey_(SHEETS.TRAININGS, TRAINING.ID, trainingId, updates, normalizeTraining_);
@@ -463,22 +469,45 @@ function deactivateStaff(payload) {
 function getTrainingTargets(payload) {
   var trainingId = text_(payload.trainingId);
   var staffId = text_(payload.staffId);
+  var includeInactiveTargets = normalizeBoolean(payload.includeInactiveTargets);
   var rows = readTable(SHEETS.TARGETS, [TARGET.TRAINING_ID, TARGET.STAFF_ID]);
   rows = rows.filter(function (row) {
     return (!trainingId || text_(row[TARGET.TRAINING_ID]) === trainingId) &&
       (!staffId || text_(row[TARGET.STAFF_ID]) === staffId) &&
-      isTargetRow_(row);
+      (includeInactiveTargets || isTargetRow_(row));
   });
-  return successResponse(rows.map(function (row) {
-    return {
-      trainingId: text_(row[TARGET.TRAINING_ID]),
-      staffId: text_(row[TARGET.STAFF_ID]),
-      isTarget: true,
-      required: normalizeBoolean(row[TARGET.REQUIRED]),
-      signatureExcluded: normalizeBoolean(row[TARGET.SIGNATURE_EXCLUDED]),
-      note: text_(row[TARGET.NOTE])
-    };
-  }));
+  return successResponse({ targets: publicTargets_(rows) });
+}
+
+function updateTrainingTargets(payload) {
+  var trainingId = requireText_(payload.trainingId, "교육ID가 필요합니다.", "MISSING_TRAINING_ID");
+  var training = findTraining_(trainingId);
+  if (!training) return errorResponse("교육 정보를 찾을 수 없습니다.", "TRAINING_NOT_FOUND");
+
+  var targets = Array.isArray(payload.targets) ? payload.targets : [];
+  if (!targets.length) return errorResponse("저장할 교육대상이 없습니다.", "NO_TARGETS");
+
+  var updatedCount = 0;
+  targets.forEach(function (item) {
+    var staffId = text_(item.staffId);
+    if (!staffId) return;
+    upsertTargetRow_(trainingId, staffId, {
+      isTarget: normalizeBoolean(item.isTarget),
+      required: item.required === undefined ? true : normalizeBoolean(item.required),
+      certificateTarget: normalizeBoolean(item.certificateTarget),
+      note: text_(item.note)
+    });
+    updatedCount += 1;
+  });
+
+  var refreshedRows = readTable(SHEETS.TARGETS, [TARGET.TRAINING_ID, TARGET.STAFF_ID]).filter(function (row) {
+    return text_(row[TARGET.TRAINING_ID]) === trainingId;
+  });
+  return successResponse({
+    trainingId: trainingId,
+    updatedCount: updatedCount,
+    targets: publicTargets_(refreshedRows)
+  });
 }
 
 function checkTrainingTarget(payload) {
@@ -1293,7 +1322,7 @@ function aliases_() {
   aliases[TARGET.IS_TARGET] = ["대상", "대상여부", "isTarget"];
   aliases[TARGET.REQUIRED] = ["필수", "필수여부", "required"];
   aliases[TARGET.SIGNATURE_EXCLUDED] = ["서명제외", "서명제외여부", "signatureExcluded"];
-  aliases[TARGET.CERTIFICATE_TARGET] = ["이수증 대상", "이수증대상", "이수증제출대상", "certificateTarget", "certificateRequiredForStaff"];
+  aliases[TARGET.CERTIFICATE_TARGET] = ["이수증 대상", "이수증대상", "이수증제출대상", "이수증제출대상여부", "certificateTarget", "certificateRequiredForStaff"];
   aliases[CERTIFICATE.ID] = ["이수증ID", "제출ID", "certificateId", "submissionId"];
   aliases[CERTIFICATE.DEPARTMENT] = ["소속부서", "부서", "department"];
   aliases[CERTIFICATE.POSITION] = ["직위", "직책", "position"];
@@ -1414,7 +1443,7 @@ function normalizeTraining_(row) {
     department: text_(row[TRAINING.DEPARTMENT]),
     category: text_(row[TRAINING.CATEGORY]),
     qrEnabled: normalizeBoolean(row[TRAINING.QR_ENABLED]),
-    signatureRequired: row[TRAINING.SIGNATURE_REQUIRED] === undefined || row[TRAINING.SIGNATURE_REQUIRED] === "" ? true : normalizeBoolean(row[TRAINING.SIGNATURE_REQUIRED]),
+    signatureRequired: normalizeBoolean(row[TRAINING.QR_ENABLED]) || row[TRAINING.SIGNATURE_REQUIRED] === undefined || row[TRAINING.SIGNATURE_REQUIRED] === "" ? true : normalizeBoolean(row[TRAINING.SIGNATURE_REQUIRED]),
     certificateRequired: normalizeBoolean(row[TRAINING.CERTIFICATE_REQUIRED]),
     status: status,
     activeStatus: status,
@@ -1449,6 +1478,20 @@ function adminStaff_(row) {
     role: text_(row[STAFF.ROLE]) || "교직원",
     note: text_(row[STAFF.NOTE])
   };
+}
+
+function publicTargets_(rows) {
+  return rows.map(function (row) {
+    return {
+      trainingId: text_(row[TARGET.TRAINING_ID]),
+      staffId: text_(row[TARGET.STAFF_ID]),
+      isTarget: isTargetRow_(row),
+      required: normalizeBoolean(row[TARGET.REQUIRED]),
+      signatureExcluded: normalizeBoolean(row[TARGET.SIGNATURE_EXCLUDED]),
+      certificateTarget: normalizeBoolean(row[TARGET.CERTIFICATE_TARGET]),
+      note: text_(row[TARGET.NOTE])
+    };
+  });
 }
 
 function findStaffByNameDept_(name, department) {
@@ -1523,6 +1566,31 @@ function updateRowByKey_(sheetName, keyColumn, keyValue, updates, normalizer) {
     return normalizer ? normalizer(updated) : updated;
   }
   return null;
+}
+
+function upsertTargetRow_(trainingId, staffId, input) {
+  var sheet = getSheetByName(SHEETS.TARGETS);
+  var table = findHeaderRow(sheet, [TARGET.TRAINING_ID, TARGET.STAFF_ID]);
+  var trainingIndex = headerIndex_(table.headers, TARGET.TRAINING_ID);
+  var staffIndex = headerIndex_(table.headers, TARGET.STAFF_ID);
+  var updates = {};
+  updates[TARGET.TRAINING_ID] = text_(trainingId);
+  updates[TARGET.STAFF_ID] = text_(staffId);
+  updates[TARGET.IS_TARGET] = yn_(input.isTarget);
+  updates[TARGET.REQUIRED] = yn_(input.required);
+  updates[TARGET.CERTIFICATE_TARGET] = yn_(input.certificateTarget);
+  updates[TARGET.NOTE] = text_(input.note);
+
+  for (var rowIndex = table.index + 1; rowIndex < table.values.length; rowIndex += 1) {
+    if (text_(table.values[rowIndex][trainingIndex]) !== text_(trainingId) || text_(table.values[rowIndex][staffIndex]) !== text_(staffId)) continue;
+    Object.keys(updates).forEach(function (column) {
+      var columnIndex = headerIndex_(table.headers, column);
+      if (columnIndex !== -1) sheet.getRange(rowIndex + 1, columnIndex + 1).setValue(updates[column]);
+    });
+    return;
+  }
+
+  appendRowByHeader(SHEETS.TARGETS, updates);
 }
 
 function headerIndex_(headers, column) {

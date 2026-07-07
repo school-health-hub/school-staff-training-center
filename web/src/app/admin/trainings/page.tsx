@@ -10,12 +10,12 @@ import {
   type TrainingMutation
 } from "@/lib/apps-script";
 import { getBasePath } from "@/lib/paths";
-import type { AppConfig, Training } from "@/lib/types";
+import type { AppConfig, CompletionMethod, Training } from "@/lib/types";
 import { useCallback, useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from "react";
 
 const APP_BASE_PATH = getBasePath();
 
-type TrainingFilter = "all" | "active" | "inactive" | "qr" | "signature" | "certificate";
+type TrainingFilter = "all" | "active" | "inactive" | "qr-signature" | "certificate" | "admin-check";
 type TrainingForm = {
   title: string;
   date: string;
@@ -23,9 +23,7 @@ type TrainingForm = {
   place: string;
   department: string;
   category: string;
-  qrEnabled: boolean;
-  signatureRequired: boolean;
-  certificateRequired: boolean;
+  completionMethod: CompletionMethod;
   status: string;
   note: string;
 };
@@ -34,9 +32,9 @@ const FILTERS: Array<{ label: string; value: TrainingFilter }> = [
   { label: "전체", value: "all" },
   { label: "활성", value: "active" },
   { label: "종료/비활성", value: "inactive" },
-  { label: "QR 사용", value: "qr" },
-  { label: "서명 필요", value: "signature" },
-  { label: "이수증 필요", value: "certificate" }
+  { label: "현장 QR 서명", value: "qr-signature" },
+  { label: "이수증 업로드", value: "certificate" },
+  { label: "관리자 확인", value: "admin-check" }
 ];
 
 const emptyForm: TrainingForm = {
@@ -46,12 +44,28 @@ const emptyForm: TrainingForm = {
   place: "",
   department: "",
   category: "",
-  qrEnabled: true,
-  signatureRequired: false,
-  certificateRequired: false,
+  completionMethod: "qr-signature",
   status: "활성",
   note: ""
 };
+
+const COMPLETION_METHODS: Array<{ value: CompletionMethod; label: string; description: string }> = [
+  {
+    value: "qr-signature",
+    label: "현장 QR 서명",
+    description: "교육장에서 QR을 스캔하고 전자서명을 제출하면 이수완료로 처리합니다."
+  },
+  {
+    value: "certificate-upload",
+    label: "이수증 업로드",
+    description: "교직원이 외부 이수증을 제출하고 담당자가 확인합니다."
+  },
+  {
+    value: "admin-check",
+    label: "관리자 확인",
+    description: "담당자가 별도 확인 후 이수 상태를 정리하는 교육입니다."
+  }
+];
 
 function PageIcon() {
   return (
@@ -79,7 +93,29 @@ function trainingMeta(training: Training) {
   return [training.date, training.time, training.place ?? training.location, training.department].filter(Boolean).join(" · ");
 }
 
+function completionMethodForTraining(training: Training): CompletionMethod {
+  if (training.certificateRequired) {
+    return "certificate-upload";
+  }
+
+  if (training.qrEnabled) {
+    return "qr-signature";
+  }
+
+  return "admin-check";
+}
+
+function completionMethodLabel(method: CompletionMethod) {
+  return COMPLETION_METHODS.find((item) => item.value === method)?.label ?? "관리자 확인";
+}
+
+function completionMethodDescription(method: CompletionMethod) {
+  return COMPLETION_METHODS.find((item) => item.value === method)?.description ?? "";
+}
+
 function formFromTraining(training: Training): TrainingForm {
+  const completionMethod = completionMethodForTraining(training);
+
   return {
     title: training.title ?? "",
     date: training.date ?? "",
@@ -87,15 +123,16 @@ function formFromTraining(training: Training): TrainingForm {
     place: training.place ?? training.location ?? "",
     department: training.department ?? "",
     category: training.category ?? "",
-    qrEnabled: Boolean(training.qrEnabled),
-    signatureRequired: Boolean(training.signatureRequired),
-    certificateRequired: Boolean(training.certificateRequired),
+    completionMethod,
     status: training.status || training.activeStatus || "활성",
     note: training.note ?? ""
   };
 }
 
 function mutationFromForm(form: TrainingForm): TrainingMutation {
+  const isQrSignature = form.completionMethod === "qr-signature";
+  const isCertificateUpload = form.completionMethod === "certificate-upload";
+
   return {
     title: form.title.trim(),
     date: form.date.trim(),
@@ -104,9 +141,9 @@ function mutationFromForm(form: TrainingForm): TrainingMutation {
     location: form.place.trim(),
     department: form.department.trim(),
     category: form.category.trim(),
-    qrEnabled: form.qrEnabled,
-    signatureRequired: form.signatureRequired,
-    certificateRequired: form.certificateRequired,
+    qrEnabled: isQrSignature,
+    signatureRequired: isQrSignature,
+    certificateRequired: isCertificateUpload,
     status: form.status.trim(),
     activeStatus: form.status.trim(),
     note: form.note.trim()
@@ -122,16 +159,16 @@ function matchesFilter(training: Training, filter: TrainingFilter) {
     return !isActiveTraining(training);
   }
 
-  if (filter === "qr") {
-    return training.qrEnabled;
-  }
-
-  if (filter === "signature") {
-    return training.signatureRequired;
+  if (filter === "qr-signature") {
+    return completionMethodForTraining(training) === "qr-signature";
   }
 
   if (filter === "certificate") {
-    return Boolean(training.certificateRequired);
+    return completionMethodForTraining(training) === "certificate-upload";
+  }
+
+  if (filter === "admin-check") {
+    return completionMethodForTraining(training) === "admin-check";
   }
 
   return true;
@@ -195,7 +232,9 @@ export default function AdminTrainingsPage() {
 
     return trainings
       .filter((training) => {
-        const haystack = [training.title, training.department, training.category, training.status, training.activeStatus].join(" ").toLowerCase();
+        const haystack = [training.title, training.department, training.category, completionMethodLabel(completionMethodForTraining(training)), training.status, training.activeStatus]
+          .join(" ")
+          .toLowerCase();
         return matchesFilter(training, filter) && (!normalizedQuery || haystack.includes(normalizedQuery));
       })
       .sort((a, b) => (a.date || "").localeCompare(b.date || "") || (a.title || a.trainingId).localeCompare(b.title || b.trainingId, "ko"));
@@ -205,8 +244,7 @@ export default function AdminTrainingsPage() {
     () => ({
       total: trainings.length,
       active: trainings.filter(isActiveTraining).length,
-      qr: trainings.filter((training) => training.qrEnabled).length,
-      signature: trainings.filter((training) => training.signatureRequired).length,
+      qrSignature: trainings.filter((training) => completionMethodForTraining(training) === "qr-signature").length,
       certificate: trainings.filter((training) => training.certificateRequired).length
     }),
     [trainings]
@@ -322,7 +360,7 @@ export default function AdminTrainingsPage() {
                 <span>TRAINING ADMIN</span>
               </div>
               <h1>교육목록을 등록하고 운영 상태를 관리합니다.</h1>
-              <p>Google Sheet를 직접 열지 않아도 교육 일정, QR 출석, 전자서명, 이수증 제출 필요 여부를 안전하게 수정합니다.</p>
+              <p>교육의 이수방식을 정하면 기존 Sheet 컬럼에 맞춰 현장 QR 서명, 이수증 업로드, 관리자 확인 방식으로 저장합니다.</p>
             </div>
           </section>
 
@@ -342,12 +380,12 @@ export default function AdminTrainingsPage() {
               <strong>{summary.active}</strong>
             </div>
             <div className="status-summary-card">
-              <span>QR 사용</span>
-              <strong>{summary.qr}</strong>
+              <span>현장 QR 서명</span>
+              <strong>{summary.qrSignature}</strong>
             </div>
             <div className="status-summary-card">
-              <span>서명/이수증</span>
-              <strong>{summary.signature + summary.certificate}</strong>
+              <span>이수증 업로드</span>
+              <strong>{summary.certificate}</strong>
             </div>
           </section>
 
@@ -356,7 +394,7 @@ export default function AdminTrainingsPage() {
               <div className="section-head">
                 <div>
                   <h2>교육 목록</h2>
-                  <p>교육명, 담당부서, 교육구분, 활성상태로 검색하고 필요한 설정을 바로 변경합니다.</p>
+                  <p>교육명, 담당부서, 교육구분, 이수방식으로 검색하고 필요한 설정을 바로 변경합니다.</p>
                 </div>
                 <button className="primary-action" onClick={openCreatePanel} type="button">
                   교육 추가
@@ -390,7 +428,7 @@ export default function AdminTrainingsPage() {
                           <th>장소</th>
                           <th>담당부서</th>
                           <th>교육구분</th>
-                          <th>설정</th>
+                          <th>이수방식</th>
                           <th>활성상태</th>
                           <th>관리</th>
                         </tr>
@@ -407,9 +445,8 @@ export default function AdminTrainingsPage() {
                             <td>{training.category || "-"}</td>
                             <td>
                               <div className="badge-row">
-                                <span>{training.qrEnabled ? "QR" : "QR 없음"}</span>
-                                <span>{training.signatureRequired ? "서명" : "서명 없음"}</span>
-                                <span>{training.certificateRequired ? "이수증" : "이수증 없음"}</span>
+                                <span>{completionMethodLabel(completionMethodForTraining(training))}</span>
+                                {completionMethodForTraining(training) === "qr-signature" ? <span>05_전자서명기록 기준</span> : null}
                               </div>
                             </td>
                             <td>
@@ -420,6 +457,14 @@ export default function AdminTrainingsPage() {
                                 <button className="ghost-button compact" onClick={() => openEditPanel(training)} type="button">
                                   수정
                                 </button>
+                                <a className="ghost-button compact" href={`${APP_BASE_PATH}/admin/targets/`}>
+                                  대상 지정
+                                </a>
+                                {completionMethodForTraining(training) === "qr-signature" ? (
+                                  <a className="ghost-button compact" href={`${APP_BASE_PATH}/admin/qr/`}>
+                                    QR 출력
+                                  </a>
+                                ) : null}
                                 <button className="ghost-button compact" disabled={saving} onClick={() => void handleStatusToggle(training)} type="button">
                                   {isActiveTraining(training) ? "비활성" : "활성"}
                                 </button>
@@ -444,14 +489,21 @@ export default function AdminTrainingsPage() {
                         <div className="badge-row">
                           <span>{training.trainingId}</span>
                           <span>{training.category || "교육구분 미입력"}</span>
-                          <span>{training.qrEnabled ? "QR 사용" : "QR 미사용"}</span>
-                          <span>{training.signatureRequired ? "전자서명 필요" : "전자서명 없음"}</span>
-                          <span>{training.certificateRequired ? "이수증 제출 필요" : "이수증 제출 없음"}</span>
+                          <span>{completionMethodLabel(completionMethodForTraining(training))}</span>
+                          {completionMethodForTraining(training) === "qr-signature" ? <span>QR 출력 가능</span> : null}
                         </div>
                         <div className="route-actions">
                           <button className="ghost-button compact" onClick={() => openEditPanel(training)} type="button">
                             수정
                           </button>
+                          <a className="ghost-button compact" href={`${APP_BASE_PATH}/admin/targets/`}>
+                            대상 지정
+                          </a>
+                          {completionMethodForTraining(training) === "qr-signature" ? (
+                            <a className="ghost-button compact" href={`${APP_BASE_PATH}/admin/qr/`}>
+                              QR 출력
+                            </a>
+                          ) : null}
                           <button className="ghost-button compact" disabled={saving} onClick={() => void handleStatusToggle(training)} type="button">
                             {isActiveTraining(training) ? "비활성으로 변경" : "활성으로 변경"}
                           </button>
@@ -472,7 +524,7 @@ export default function AdminTrainingsPage() {
                 <div className="section-head">
                   <div>
                     <h2>{editingTrainingId ? "교육 수정" : "교육 추가"}</h2>
-                    <p>저장하면 Apps Script를 통해 01_교육목록 탭에 기록됩니다.</p>
+                    <p>저장하면 Apps Script를 통해 01_교육목록 탭에 기록됩니다. 현장 QR 서명은 전자서명 출석으로 자동 처리됩니다.</p>
                   </div>
                 </div>
 
@@ -511,19 +563,34 @@ export default function AdminTrainingsPage() {
                     </select>
                   </label>
 
+                  <label className="field-group">
+                    <span>이수방식</span>
+                    <select name="completionMethod" onChange={handleChange} value={form.completionMethod}>
+                      {COMPLETION_METHODS.map((method) => (
+                        <option key={method.value} value={method.value}>
+                          {method.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
                   <div className="training-card">
-                    <label className="checkbox-row">
-                      <input checked={form.qrEnabled} name="qrEnabled" onChange={handleChange} type="checkbox" />
-                      <span>QR사용여부</span>
-                    </label>
-                    <label className="checkbox-row">
-                      <input checked={form.signatureRequired} name="signatureRequired" onChange={handleChange} type="checkbox" />
-                      <span>전자서명필요여부</span>
-                    </label>
-                    <label className="checkbox-row">
-                      <input checked={form.certificateRequired} name="certificateRequired" onChange={handleChange} type="checkbox" />
-                      <span>이수증제출필요여부</span>
-                    </label>
+                    <strong>{completionMethodLabel(form.completionMethod)}</strong>
+                    <p>{completionMethodDescription(form.completionMethod)}</p>
+                    {form.completionMethod === "qr-signature" ? (
+                      <div className="badge-row">
+                        <span>현장 QR 서명</span>
+                        <span>QR 출력 가능</span>
+                        <span>서명부 생성 대상</span>
+                        <span>05_전자서명기록 기준</span>
+                      </div>
+                    ) : null}
+                    {form.completionMethod === "certificate-upload" ? (
+                      <div className="badge-row">
+                        <span>이수증 업로드</span>
+                        <span>06_이수증업로드 기준</span>
+                      </div>
+                    ) : null}
                   </div>
 
                   <label className="field-group">

@@ -2,10 +2,11 @@
 
 import { AdminAuthGate, AdminLogoutButton } from "@/components/admin-auth-gate";
 import { getTrainingList, loadAppConfig } from "@/lib/apps-script";
+import { getBasePath } from "@/lib/paths";
 import type { SchoolConfig, Training } from "@/lib/types";
 import { useEffect, useMemo, useState } from "react";
 
-const APP_BASE_PATH = "/school-staff-training-center";
+const APP_BASE_PATH = getBasePath();
 const PUBLIC_ORIGIN = "https://school-health-hub.github.io";
 const QR_VERSION = 5;
 const QR_SIZE = QR_VERSION * 4 + 17;
@@ -290,12 +291,14 @@ export default function AdminQrPage() {
         return;
       }
 
-      const activeTrainings = trainingResult.data.filter((training) =>
-        ["활성", "진행중", "준비중", "active", "ready", "y", "yes", "사용"].includes((training.status ?? training.activeStatus ?? "").trim().toLowerCase())
+      const activeTrainings = trainingResult.data.filter(
+        (training) =>
+          training.qrEnabled &&
+          ["활성", "진행중", "준비중", "active", "ready", "y", "yes", "사용"].includes((training.status ?? training.activeStatus ?? "").trim().toLowerCase())
       );
       setTrainings(activeTrainings);
       setSelectedTrainingId(activeTrainings[0]?.trainingId ?? "");
-      setMessage(activeTrainings.length ? "QR을 출력할 교육을 선택해 주세요." : "활성 교육이 없습니다.");
+      setMessage(activeTrainings.length ? "QR을 출력할 현장 QR 서명 교육을 선택해 주세요." : "QR 출력 가능한 현장 QR 서명 교육이 없습니다.");
     }
 
     void loadPage();
@@ -331,7 +334,7 @@ export default function AdminQrPage() {
               <span>QR 출력</span>
             </div>
             <h1>교육별 QR 출석 안내문을 생성합니다.</h1>
-            <p>활성 교육을 선택하면 GitHub Pages 출석 페이지로 연결되는 QR 코드가 생성됩니다.</p>
+            <p>현장 QR 서명 교육을 선택하면 전자서명 출석 화면으로 연결되는 QR 코드가 생성됩니다.</p>
           </div>
         </section>
 
@@ -346,7 +349,7 @@ export default function AdminQrPage() {
             <div className="section-head">
               <div>
                 <h2>교육 선택</h2>
-                <p>QR 출석을 안내할 교육을 선택하세요.</p>
+                <p>교육장에서 전자서명 출석으로 운영할 교육을 선택하세요.</p>
               </div>
             </div>
 
@@ -363,7 +366,7 @@ export default function AdminQrPage() {
                     <p>{trainingMeta(training)}</p>
                     <div className="badge-row">
                       <span>{training.trainingId}</span>
-                      <span>{training.qrEnabled ? "QR 사용" : "QR 미사용"}</span>
+                      <span>현장 QR 서명</span>
                     </div>
                   </button>
                 ))}
@@ -372,7 +375,7 @@ export default function AdminQrPage() {
               <div className="empty-training">
                 <div>
                   <strong>활성 교육이 없습니다.</strong>
-                  <p>교육목록에서 활성 상태의 교육을 먼저 등록해 주세요.</p>
+                  <p>교육목록에서 현장 QR 서명 방식의 활성 교육을 먼저 등록해 주세요.</p>
                 </div>
               </div>
             )}
