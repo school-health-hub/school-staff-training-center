@@ -29,18 +29,21 @@ function quoteCsv(value: string | number | undefined) {
 }
 
 function buildCsv(rows: FinalAttendanceRow[]) {
-  const header = ["순번", "교육ID", "교육명", "교육일자", "성명", "소속부서", "직책", "서명여부", "서명파일URL", "서명일시", "이수상태", "비고"];
+  const header = ["순번", "교육ID", "교육명", "교육일자", "교육시간", "장소", "성명", "소속부서", "직책", "출석일시", "서명여부", "서명파일URL", "이수증제출여부", "이수상태", "비고"];
   const body = rows.map((row) => [
     row.sequence,
     row.trainingId,
     row.trainingTitle,
     row.trainingDate,
+    row.trainingTime ?? "",
+    row.place ?? "",
     row.name,
     row.department,
     row.position,
+    row.signedAt ?? row.attendedAt,
     row.signatureStatus,
     row.signatureFileUrl,
-    row.signedAt ?? row.attendedAt,
+    row.certificateStatus ?? (row.certificateSubmitted ? "제출" : "미제출"),
     row.completionStatus,
     row.note ?? ""
   ]);
@@ -82,6 +85,7 @@ export default function AdminFinalSheetPage() {
   const [preview, setPreview] = useState<FinalAttendancePreviewResult>();
   const [message, setMessage] = useState("교육목록을 불러오는 중입니다.");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [generatedFile, setGeneratedFile] = useState<{ fileId?: string; fileUrl?: string }>();
 
   useEffect(() => {
     let ignore = false;
@@ -131,6 +135,7 @@ export default function AdminFinalSheetPage() {
     async function loadPreview() {
       if (!runtimeConfig || !selectedTrainingId) {
         setPreview(undefined);
+        setGeneratedFile(undefined);
         return;
       }
 
@@ -148,6 +153,10 @@ export default function AdminFinalSheetPage() {
       }
 
       setPreview(result.data);
+      setGeneratedFile({
+        fileId: result.data.training.finalRosterFileId,
+        fileUrl: result.data.training.finalRosterFileUrl
+      });
       setMessage("최종 서명부 미리보기를 불러왔습니다.");
     }
 
@@ -163,6 +172,8 @@ export default function AdminFinalSheetPage() {
     const title = sanitizeFilename(selectedTraining?.title ?? preview?.training.title ?? "");
     return `최종서명부_${selectedTrainingId}_${title}.csv`;
   }, [preview?.training.title, selectedTraining?.title, selectedTrainingId]);
+  const completionRate = preview?.summary.targetCount ? Math.round((preview.summary.completed / preview.summary.targetCount) * 100) : 0;
+  const unsignedCount = preview?.summary.unsigned ?? preview?.summary.signatureRequired ?? 0;
 
   async function handleDownload() {
     if (!runtimeConfig || !selectedTrainingId || !preview?.rows.length) {
@@ -186,6 +197,10 @@ export default function AdminFinalSheetPage() {
       training: result.data.training,
       summary: result.data.summary,
       rows: result.data.rows
+    });
+    setGeneratedFile({
+      fileId: result.data.fileId || result.data.training.finalRosterFileId,
+      fileUrl: result.data.fileUrl || result.data.training.finalRosterFileUrl
     });
     setMessage(`08_최종서명부에 ${result.data.writtenCount}건을 기록하고 CSV를 다운로드했습니다.${result.data.fileUrl ? " 생성 파일 URL도 교육목록에 저장했습니다." : ""}`);
     setIsGenerating(false);
@@ -234,6 +249,16 @@ export default function AdminFinalSheetPage() {
 
             {trainings.length ? (
               <div className="status-list">
+                <label className="field-group">
+                  <span>교육 선택</span>
+                  <select onChange={(event) => setSelectedTrainingId(event.target.value)} value={selectedTrainingId}>
+                    {trainings.map((training) => (
+                      <option key={training.trainingId} value={training.trainingId}>
+                        {training.title || training.trainingId}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 {trainings.map((training) => (
                   <button
                     className={`training-card qr-training-option${training.trainingId === selectedTrainingId ? " selected" : ""}`}
@@ -245,7 +270,7 @@ export default function AdminFinalSheetPage() {
                     <p>{trainingMeta(training)}</p>
                     <div className="badge-row">
                       <span>{training.trainingId}</span>
-                      <span>{training.signatureRequired ? "서명 필요" : "서명 없음"}</span>
+                      <span>전자서명 기준</span>
                     </div>
                   </button>
                 ))}
@@ -267,13 +292,19 @@ export default function AdminFinalSheetPage() {
                 <p>{selectedTraining ? trainingMeta(selectedTraining) : "교육을 선택하면 최종 서명부 미리보기가 표시됩니다."}</p>
               </div>
               <button className="primary-action" disabled={!preview?.rows.length || isGenerating} onClick={handleDownload} type="button">
-                {isGenerating ? "생성 중" : "CSV 다운로드"}
+                {isGenerating ? "생성 중" : "최종서명부 생성"}
               </button>
             </div>
 
             <div className="soft-alert" role="note">
-              이 자료는 연수 증빙용으로 사용됩니다.
+              최종 이수 판정은 05_전자서명기록의 저장완료 기록을 기준으로 계산합니다.
             </div>
+
+            {generatedFile?.fileUrl ? (
+              <div className="soft-alert success" role="status">
+                생성된 최종서명부 파일: <a href={generatedFile.fileUrl} rel="noreferrer" target="_blank">Google Sheet 열기</a>
+              </div>
+            ) : null}
 
             {preview ? (
               <>
@@ -287,12 +318,12 @@ export default function AdminFinalSheetPage() {
                     <strong>{preview.summary.completed}</strong>
                   </div>
                   <div className="status-summary-card">
-                    <span>서명필요</span>
-                    <strong>{preview.summary.signatureRequired}</strong>
+                    <span>미서명</span>
+                    <strong>{unsignedCount}</strong>
                   </div>
                   <div className="status-summary-card">
-                    <span>미이수</span>
-                    <strong>{preview.summary.incomplete}</strong>
+                    <span>이수율</span>
+                    <strong>{completionRate}%</strong>
                   </div>
                 </section>
 
@@ -304,11 +335,12 @@ export default function AdminFinalSheetPage() {
                           <tr>
                             <th>순번</th>
                             <th>성명</th>
-                            <th>부서</th>
-                            <th>직위</th>
+                            <th>소속부서</th>
+                            <th>직책</th>
                             <th>서명여부</th>
                             <th>서명일시</th>
                             <th>서명파일</th>
+                            <th>이수증</th>
                             <th>이수상태</th>
                           </tr>
                         </thead>
@@ -322,6 +354,7 @@ export default function AdminFinalSheetPage() {
                               <td>{row.signatureStatus}</td>
                               <td>{row.signedAt || row.attendedAt || "-"}</td>
                               <td>{row.signatureFileUrl ? "저장됨" : "-"}</td>
+                              <td>{row.certificateStatus ?? (row.certificateSubmitted ? "제출" : "미제출")}</td>
                               <td>
                                 <span className={statusClassName(row.completionStatus)}>{row.completionStatus}</span>
                               </td>
@@ -346,8 +379,9 @@ export default function AdminFinalSheetPage() {
                             <span className={statusClassName(row.completionStatus)}>{row.completionStatus}</span>
                           </div>
                           <div className="badge-row">
-                            <span>{row.signatureStatus === "완료" ? "서명 완료" : "서명 필요"}</span>
+                            <span>{row.signatureStatus === "완료" ? "서명 완료" : "미서명"}</span>
                             <span>서명 {row.signatureStatus}</span>
+                            <span>이수증 {row.certificateStatus ?? (row.certificateSubmitted ? "제출" : "미제출")}</span>
                           </div>
                           {row.signedAt || row.attendedAt ? <p>서명일시: {row.signedAt || row.attendedAt}</p> : null}
                           {row.signatureFileUrl ? <p>서명파일URL: {row.signatureFileUrl}</p> : null}

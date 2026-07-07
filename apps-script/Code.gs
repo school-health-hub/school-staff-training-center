@@ -140,13 +140,15 @@ const FINAL = {
   TRAINING_ID: "교육ID",
   TRAINING_TITLE: "교육명",
   TRAINING_DATE: "교육일자",
+  TRAINING_TIME: "교육시간",
+  PLACE: "장소",
   STAFF_NAME: "성명",
-  DEPARTMENT: "부서",
-  POSITION: "직위",
+  DEPARTMENT: "소속부서",
+  POSITION: "직책",
   ATTENDED_AT: "출석일시",
   SIGNATURE_STATUS: "서명여부",
   SIGNATURE_FILE_URL: "서명파일URL",
-  SIGNED_AT: "서명일시",
+  CERTIFICATE_STATUS: "이수증제출여부",
   COMPLETION_STATUS: "이수상태",
   NOTE: "비고"
 };
@@ -571,7 +573,8 @@ function getSignatureRequiredTrainings(payload) {
     var normalized = normalizeTraining_(training);
     if (!signatureRequiredForTarget_(normalized, target)) return null;
     var signature = findInRows2_(signatures, SIGNATURE.TRAINING_ID, normalized.trainingId, SIGNATURE.STAFF_ID, staffId);
-    if (excludeSigned && signature) return null;
+    var signatureSaved = isSignatureSaved_(signature);
+    if (excludeSigned && signatureSaved) return null;
     return {
       trainingId: normalized.trainingId,
       title: normalized.title,
@@ -580,11 +583,11 @@ function getSignatureRequiredTrainings(payload) {
       place: normalized.place,
       department: normalized.department,
       attendanceRequired: false,
-      attendanceDone: Boolean(signature),
-      attendedAt: signature ? normalizeDateTime_(signature[SIGNATURE.SIGNED_AT]) : "",
-      signatureDone: Boolean(signature),
+      attendanceDone: signatureSaved,
+      attendedAt: signatureSaved ? normalizeDateTime_(signature[SIGNATURE.SIGNED_AT]) : "",
+      signatureDone: signatureSaved,
       signedAt: signature ? normalizeDateTime_(signature[SIGNATURE.SIGNED_AT]) : "",
-      selectable: !signature,
+      selectable: !signatureSaved,
       blockedReason: ""
     };
   }).filter(Boolean).sort(compareSignatureItems_);
@@ -596,7 +599,7 @@ function checkSignatureExists(payload) {
   var staffId = requireText_(payload.staffId, "교직원ID가 필요합니다.", "MISSING_STAFF_ID");
   var existing = findSignature_(trainingId, staffId);
   return successResponse({
-    exists: Boolean(existing),
+    exists: isSignatureSaved_(existing),
     signatureId: existing ? text_(existing[SIGNATURE.ID]) : "",
     signedAt: existing ? normalizeDateTime_(existing[SIGNATURE.SIGNED_AT]) : "",
     fileUrl: existing ? text_(existing[SIGNATURE.FILE_URL]) : "",
@@ -633,7 +636,7 @@ function saveBulkSignature(payload) {
     if (!normalized) return skipped.push({ trainingId: trainingId, title: "", reason: "교육 정보 없음" });
     if (!target) return skipped.push({ trainingId: trainingId, title: normalized.title, reason: "교육대상 아님" });
     if (!signatureRequiredForTarget_(normalized, target)) return skipped.push({ trainingId: trainingId, title: normalized.title, reason: "서명 대상 아님" });
-    if (findSignature_(trainingId, staffId)) return skipped.push({ trainingId: trainingId, title: normalized.title, reason: "이미 서명 완료" });
+    if (isSignatureSaved_(findSignature_(trainingId, staffId))) return skipped.push({ trainingId: trainingId, title: normalized.title, reason: "이미 서명 완료" });
     rowsToSave.push(normalized);
   });
   if (!rowsToSave.length) {
@@ -661,7 +664,7 @@ function saveBulkSignature(payload) {
     row[SIGNATURE.SIGNED_AT] = signedAt;
     row[SIGNATURE.FILE_URL] = fileUrl;
     row[SIGNATURE.FILE_ID] = fileId;
-    row[SIGNATURE.STATUS] = "완료";
+    row[SIGNATURE.STATUS] = "저장완료";
     row[SIGNATURE.BUNDLE_ID] = bundleId;
     row[SIGNATURE.NOTE] = rowsToSave.length > 1 ? note : "";
     appendRowByHeader(SHEETS.SIGNATURES, row);
@@ -674,7 +677,7 @@ function saveBulkSignature(payload) {
       fileUrl: fileUrl,
       fileId: fileId,
       bundleId: bundleId,
-      saveStatus: "완료"
+      saveStatus: "저장완료"
     };
   });
   return successResponse({
@@ -814,19 +817,16 @@ function getTrainingAttendanceStatus(payload) {
     return text_(row[TARGET.TRAINING_ID]) === trainingId && isTargetRow_(row);
   });
   var staffRows = readTable(SHEETS.STAFF, [STAFF.ID, STAFF.NAME]);
-  var attendances = readTableOptional_(SHEETS.ATTENDANCE);
   var signatures = readTableOptional_(SHEETS.SIGNATURES);
   var items = targets.map(function (target) {
     var staff = findInRows_(staffRows, STAFF.ID, target[STAFF.ID] || target[TARGET.STAFF_ID]);
     var staffId = text_(target[TARGET.STAFF_ID]);
-    var attendance = findInRows2_(attendances, ATTENDANCE.TRAINING_ID, trainingId, ATTENDANCE.STAFF_ID, staffId);
     var signature = findInRows2_(signatures, SIGNATURE.TRAINING_ID, trainingId, SIGNATURE.STAFF_ID, staffId);
     var signatureRequired = signatureRequiredForTarget_(normalizedTraining, target);
-    var attendanceCompleted = signatureRequired ? Boolean(signature) : Boolean(attendance);
-    var attendedAt = signatureRequired
-      ? (signature ? normalizeDateTime_(signature[SIGNATURE.SIGNED_AT]) : "")
-      : (attendance ? normalizeDateTime_(attendance[ATTENDANCE.ATTENDED_AT]) : "");
-    var statusGroup = !attendanceCompleted ? (signatureRequired ? "signature" : "absent") : "completed";
+    var signatureSaved = isSignatureSaved_(signature);
+    var attendanceCompleted = signatureSaved;
+    var attendedAt = signatureSaved ? normalizeDateTime_(signature[SIGNATURE.SIGNED_AT]) : "";
+    var statusGroup = signatureSaved ? "completed" : "signature";
     return {
       trainingId: trainingId,
       staffId: staffId,
@@ -838,7 +838,7 @@ function getTrainingAttendanceStatus(payload) {
       attendanceCompleted: attendanceCompleted,
       attendedAt: attendedAt,
       signatureRequired: signatureRequired,
-      signatureCompleted: signatureRequired ? Boolean(signature) : false,
+      signatureCompleted: signatureRequired ? signatureSaved : false,
       signedAt: signature ? normalizeDateTime_(signature[SIGNATURE.SIGNED_AT]) : "",
       finalStatus: statusGroup === "completed" ? "완료" : statusGroup === "signature" ? "서명 필요" : "미출석",
       statusGroup: statusGroup
@@ -935,11 +935,12 @@ function buildMyTrainingStatus_(staff) {
     var attendance = findInRows2_(attendances, ATTENDANCE.TRAINING_ID, normalized.trainingId, ATTENDANCE.STAFF_ID, staffId);
     var signatureRequired = signatureRequiredForTarget_(normalized, target);
     var signature = findInRows2_(signatures, SIGNATURE.TRAINING_ID, normalized.trainingId, SIGNATURE.STAFF_ID, staffId);
+    var signatureSaved = isSignatureSaved_(signature);
     var certificate = findCertificate_(normalized.trainingId, staffId, certificates);
     var final = completionStatus_({
-      attendanceCompleted: signatureRequired ? Boolean(signature) : (!normalized.qrEnabled || Boolean(attendance)),
+      attendanceCompleted: signatureRequired ? signatureSaved : (!normalized.qrEnabled || Boolean(attendance)),
       signatureRequired: signatureRequired,
-      signatureCompleted: Boolean(signature),
+      signatureCompleted: signatureSaved,
       certificateRequired: normalized.certificateRequired,
       certificateSubmitted: Boolean(certificate),
       certificateApproved: certificate ? isApprovedCertificate_(certificate) : false
@@ -953,9 +954,9 @@ function buildMyTrainingStatus_(staff) {
       department: normalized.department,
       required: normalizeBoolean(target[TARGET.REQUIRED]),
       attendanceRequired: signatureRequired ? false : normalized.qrEnabled,
-      attendanceCompleted: signatureRequired ? Boolean(signature) : Boolean(attendance),
+      attendanceCompleted: signatureRequired ? signatureSaved : Boolean(attendance),
       signatureRequired: signatureRequired,
-      signatureCompleted: signatureRequired ? Boolean(signature) : false,
+      signatureCompleted: signatureRequired ? signatureSaved : false,
       certificateRequired: normalized.certificateRequired,
       certificateSubmitted: Boolean(certificate),
       certificateApproved: certificate ? isApprovedCertificate_(certificate) : false,
@@ -990,22 +991,29 @@ function buildFinalAttendance_(trainingId, writeRows) {
   if (!status.ok) return jsonOutput_(status);
   var training = status.data.training;
   var signatures = readTableOptional_(SHEETS.SIGNATURES);
+  var certificates = readTableOptional_(SHEETS.CERTIFICATES);
   var rows = status.data.items.map(function (item, index) {
     var signature = findInRows2_(signatures, SIGNATURE.TRAINING_ID, trainingId, SIGNATURE.STAFF_ID, item.staffId);
-    var completion = item.statusGroup === "completed" ? "이수완료" : item.statusGroup === "signature" ? "서명필요" : "미이수";
+    var signatureSaved = isSignatureSaved_(signature);
+    var certificate = findCertificate_(trainingId, item.staffId, certificates);
+    var completion = signatureSaved ? "이수완료" : "미이수";
     return {
       sequence: index + 1,
       trainingId: trainingId,
       trainingTitle: training.title,
       trainingDate: training.date,
+      trainingTime: training.time,
+      place: training.place,
       staffId: item.staffId,
       name: item.name,
       department: item.department,
       position: item.position,
-      attendedAt: item.attendedAt,
-      signatureStatus: item.signatureRequired ? (item.signatureCompleted ? "완료" : "필요") : "불필요",
-      signatureFileUrl: signature ? text_(signature[SIGNATURE.FILE_URL]) : "",
-      signedAt: signature ? normalizeDateTime_(signature[SIGNATURE.SIGNED_AT]) : "",
+      attendedAt: signatureSaved ? normalizeDateTime_(signature[SIGNATURE.SIGNED_AT]) : "",
+      signatureStatus: signatureSaved ? "완료" : "미완료",
+      signatureFileUrl: signatureSaved ? text_(signature[SIGNATURE.FILE_URL]) : "",
+      signedAt: signatureSaved ? normalizeDateTime_(signature[SIGNATURE.SIGNED_AT]) : "",
+      certificateSubmitted: Boolean(certificate),
+      certificateStatus: certificate ? "제출" : "미제출",
       completionStatus: completion,
       note: ""
     };
@@ -1013,21 +1021,41 @@ function buildFinalAttendance_(trainingId, writeRows) {
   if (writeRows) {
     var finalFile = createFinalRosterFile_(training, rows);
     if (finalFile) {
+      ensureColumns_(SHEETS.TRAININGS, [TRAINING.FINAL_ROSTER_FILE_ID, TRAINING.FINAL_ROSTER_FILE_URL]);
       updateRowByKey_(SHEETS.TRAININGS, TRAINING.ID, trainingId, mapFinalRosterFile_(finalFile), normalizeTraining_);
     }
+    ensureColumns_(SHEETS.FINAL_ROSTER, [
+      FINAL.SEQUENCE,
+      FINAL.TRAINING_ID,
+      FINAL.TRAINING_TITLE,
+      FINAL.TRAINING_DATE,
+      FINAL.TRAINING_TIME,
+      FINAL.PLACE,
+      FINAL.STAFF_NAME,
+      FINAL.DEPARTMENT,
+      FINAL.POSITION,
+      FINAL.ATTENDED_AT,
+      FINAL.SIGNATURE_STATUS,
+      FINAL.SIGNATURE_FILE_URL,
+      FINAL.CERTIFICATE_STATUS,
+      FINAL.COMPLETION_STATUS,
+      FINAL.NOTE
+    ]);
     rows.forEach(function (item) {
       var row = {};
       row[FINAL.SEQUENCE] = item.sequence;
       row[FINAL.TRAINING_ID] = item.trainingId;
       row[FINAL.TRAINING_TITLE] = item.trainingTitle;
       row[FINAL.TRAINING_DATE] = item.trainingDate;
+      row[FINAL.TRAINING_TIME] = item.trainingTime;
+      row[FINAL.PLACE] = item.place;
       row[FINAL.STAFF_NAME] = item.name;
       row[FINAL.DEPARTMENT] = item.department;
       row[FINAL.POSITION] = item.position;
       row[FINAL.ATTENDED_AT] = item.attendedAt;
       row[FINAL.SIGNATURE_STATUS] = item.signatureStatus;
       row[FINAL.SIGNATURE_FILE_URL] = item.signatureFileUrl;
-      row[FINAL.SIGNED_AT] = item.signedAt;
+      row[FINAL.CERTIFICATE_STATUS] = item.certificateStatus;
       row[FINAL.COMPLETION_STATUS] = item.completionStatus;
       row[FINAL.NOTE] = item.note;
       appendRowByHeader(SHEETS.FINAL_ROSTER, row);
@@ -1038,7 +1066,8 @@ function buildFinalAttendance_(trainingId, writeRows) {
     summary: {
       targetCount: rows.length,
       completed: rows.filter(function (row) { return row.completionStatus === "이수완료"; }).length,
-      signatureRequired: rows.filter(function (row) { return row.completionStatus === "서명필요"; }).length,
+      signatureRequired: rows.filter(function (row) { return row.signatureStatus !== "완료"; }).length,
+      unsigned: rows.filter(function (row) { return row.signatureStatus !== "완료"; }).length,
       incomplete: rows.filter(function (row) { return row.completionStatus === "미이수"; }).length
     },
     rows: rows,
@@ -1057,15 +1086,21 @@ function createFinalRosterFile_(training, rows) {
   var spreadsheet = SpreadsheetApp.create(fileName);
   var sheet = spreadsheet.getSheets()[0];
   sheet.setName("최종서명부");
-  var values = [["순번", "성명", "소속부서", "직책", "서명여부", "서명이미지 또는 서명파일URL", "서명일시", "이수상태", "비고"]].concat(rows.map(function (row) {
+  var values = [["순번", "교육ID", "교육명", "교육일자", "교육시간", "장소", "성명", "소속부서", "직책", "출석일시", "서명여부", "서명파일URL", "이수증제출여부", "이수상태", "비고"]].concat(rows.map(function (row) {
     return [
       row.sequence,
+      row.trainingId,
+      row.trainingTitle,
+      row.trainingDate,
+      row.trainingTime,
+      row.place,
       row.name,
       row.department,
       row.position,
+      row.signedAt,
       row.signatureStatus,
       row.signatureFileUrl,
-      row.signedAt,
+      row.certificateStatus,
       row.completionStatus,
       row.note || ""
     ];
@@ -1148,6 +1183,20 @@ function appendRowByHeader(sheetName, rowObject) {
   });
   sheet.appendRow(row);
   return sheet.getLastRow();
+}
+
+function ensureColumns_(sheetName, columns) {
+  var sheet = getSheetByName(sheetName);
+  var table = findHeaderRow(sheet, requiredHeaders_(sheetName));
+  var headers = table.headers.slice();
+  var nextColumn = headers.length + 1;
+  columns.forEach(function (column) {
+    var exists = headers.some(function (header) { return sameHeader_(header, column); });
+    if (exists) return;
+    sheet.getRange(table.index + 1, nextColumn).setValue(column);
+    headers.push(column);
+    nextColumn += 1;
+  });
 }
 
 function successResponse(data) {
@@ -1234,7 +1283,10 @@ function aliases_() {
   aliases[FINAL.SIGNATURE_FILE_URL] = ["서명파일URL", "전자서명파일URL"];
   aliases[FINAL.SIGNATURE_STATUS] = ["서명여부", "전자서명여부"];
   aliases[FINAL.SIGNATURE_FILE_URL] = ["서명파일URL", "전자서명파일URL", "서명이미지 또는 서명파일URL", "서명이미지URL"];
-  aliases[FINAL.SIGNED_AT] = ["서명일시", "전자서명일시"];
+  aliases[FINAL.TRAINING_TIME] = ["교육시간", "시간", "time"];
+  aliases[FINAL.PLACE] = ["장소", "교육장소", "place", "location"];
+  aliases[FINAL.ATTENDED_AT] = ["출석일시", "서명일시", "전자서명일시"];
+  aliases[FINAL.CERTIFICATE_STATUS] = ["이수증제출여부", "이수증 제출 여부", "certificateStatus"];
   aliases[FINAL.DEPARTMENT] = ["소속부서", "부서", "department"];
   aliases[FINAL.POSITION] = ["직책", "직위", "position"];
   return aliases;
@@ -1507,6 +1559,12 @@ function isTargetRow_(row) {
 function isApprovedCertificate_(certificate) {
   var status = text_(certificate[CERTIFICATE.STATUS]);
   return ["승인", "승인완료", "확인완료", "완료"].indexOf(status) !== -1;
+}
+
+function isSignatureSaved_(signature) {
+  if (!signature) return false;
+  var status = text_(signature[SIGNATURE.STATUS]);
+  return !status || ["저장완료", "완료", "제출", "승인"].indexOf(status) !== -1;
 }
 
 function signatureRequiredForTarget_(training, target) {

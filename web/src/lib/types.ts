@@ -305,14 +305,18 @@ export type FinalAttendanceRow = {
   trainingId: string;
   trainingTitle: string;
   trainingDate: string;
+  trainingTime?: string;
+  place?: string;
   staffId?: string;
   name: string;
   department: string;
   position: string;
   attendedAt: string;
-  signatureStatus: "완료" | "필요" | "불필요";
+  signatureStatus: "완료" | "미완료" | "필요" | "불필요";
   signatureFileUrl: string;
   signedAt?: string;
+  certificateSubmitted?: boolean;
+  certificateStatus?: string;
   completionStatus: "이수완료" | "서명필요" | "미이수";
   note?: string;
 };
@@ -321,6 +325,7 @@ export type FinalAttendanceSummary = {
   targetCount: number;
   completed: number;
   signatureRequired: number;
+  unsigned?: number;
   incomplete: number;
 };
 
