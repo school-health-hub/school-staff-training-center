@@ -23,7 +23,7 @@ jobs:
       contents: read
       pages: write
     env:
-      NEXT_PUBLIC_BASE_PATH: /school-staff-training-center
+      NEXT_PUBLIC_BASE_PATH: /${{ github.event.repository.name }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4

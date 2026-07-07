@@ -7,7 +7,6 @@ import type { SchoolConfig, Training } from "@/lib/types";
 import { useEffect, useMemo, useState } from "react";
 
 const APP_BASE_PATH = getBasePath();
-const PUBLIC_ORIGIN = "https://school-health-hub.github.io";
 const QR_VERSION = 5;
 const QR_SIZE = QR_VERSION * 4 + 17;
 const QR_DATA_CODEWORDS = 108;
@@ -33,7 +32,8 @@ function trainingMeta(training?: Training) {
 
 function attendanceUrl(trainingId: string) {
   const params = new URLSearchParams({ trainingId });
-  return `${PUBLIC_ORIGIN}${APP_BASE_PATH}/attendance?${params.toString()}`;
+  const origin = typeof window === "undefined" ? "" : window.location.origin;
+  return `${origin}${APP_BASE_PATH}/attendance?${params.toString()}`;
 }
 
 function gfMultiply(x: number, y: number) {

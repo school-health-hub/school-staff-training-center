@@ -1,21 +1,70 @@
 # 학교 교직원 교육센터
 
-**School Staff Training Center**는 학교에서 반복 운영하는 교직원 연수, 법정의무교육, 안전교육, 전달연수의 출석, 전자서명, 이수현황, 최종 서명부를 한곳에서 관리하기 위한 공용 웹앱입니다.
+**School Staff Training Center**는 학교에서 반복 운영하는 교직원 연수, 법정의무교육, 안전교육, 전달연수의 전자서명 출석, 이수현황, 이수증 제출, 최종 서명부를 관리하기 위한 공용 템플릿입니다.
 
 공용 배포 구조는 **GitHub Pages + Apps Script + Google Sheet + Google Drive**입니다.
 
 - GitHub Pages: 정적 화면 제공
-- Apps Script: 학교별 Sheet/Drive 읽기·쓰기 API
-- Google Sheet: 학교설정, 교육목록, 교직원명단, 출석기록 저장
-- Google Drive: 전자서명 이미지, 이수증 파일, 최종 서명부 저장
+- Apps Script: 학교별 Google Sheet/Drive 읽기·쓰기 API
+- Google Sheet: 학교설정, 교육목록, 교직원명단, 교육대상, 전자서명기록, 이수증업로드 기록 저장
+- Google Drive: 전자서명 이미지, 이수증 파일, 최종 서명부 파일 저장
 
-## GitHub Pages 설정 방식
+## 운영 기준
 
-학교별 설정은 `.env.local`이 아니라 런타임 설정 파일인 `app-config.json`으로 관리합니다.
+- QR 출석 = 전자서명 출석입니다.
+- 현장 QR 교육은 `전자서명 불필요` 방식으로 운영하지 않습니다.
+- 교직원이 교육장 QR을 스캔하면 `/attendance?trainingId=...`로 진입합니다.
+- 성명 + 소속부서로 본인 확인 후 바로 전자서명을 제출합니다.
+- `05_전자서명기록`이 현장 교육의 출석 및 이수 기준입니다.
+- `04_QR출석기록`은 레거시/보조 로그로만 취급하며 최종 이수 판정 기준으로 사용하지 않습니다.
+- 일반 교직원 화면에서는 인증코드를 요구하지 않습니다.
+- 관리자 화면은 `00_학교설정`의 `adminCode`로 보호합니다.
 
-앱은 시작할 때 GitHub Pages에 배포된 `app-config.json`을 먼저 `fetch`합니다. 파일이 없거나 `appsScriptUrl`이 비어 있으면 Apps Script API를 호출하지 않고, 사용자에게 설정 파일을 준비하라는 안내 배너를 표시합니다.
+## 주요 기능
 
-예시는 [web/public/app-config.example.json](web/public/app-config.example.json)에 있습니다.
+- 학교설정 불러오기
+- 교육목록 불러오기
+- 성명 + 소속부서 기반 교직원 확인
+- 현장 QR 전자서명 출석
+- 여러 교육 일괄 전자서명
+- 내 이수현황 확인
+- 이수증 제출
+- 관리자 QR 출력
+- 관리자 서명/이수 현황
+- 교육목록/교육대상/교직원 명단 관리
+- 최종 서명부 생성 및 다운로드
+
+## 프로젝트 구조
+
+```text
+.
+├─ docs/               # 설치, 구조, 배포, 개인정보, 시트 구조 문서
+├─ apps-script/        # 학교별 Google Sheet에 붙여 배포할 Apps Script API
+├─ web/                # GitHub Pages 정적 웹앱
+├─ template/           # 학교별 복사용 허브시트 템플릿
+├─ .github/            # GitHub Pages 자동 배포 workflow
+├─ README.md
+├─ CODEX.md
+├─ DESIGN.md
+└─ NEXT.md
+```
+
+## 학교별 복사 배포 흐름
+
+1. 이 GitHub 저장소를 학교 또는 담당자 계정으로 복사합니다.
+2. `template/`의 허브시트 템플릿을 학교 Google Drive로 복사합니다.
+3. 복사한 Google Sheet의 `00_학교설정`에 학교명, 담당부서, Drive 폴더 ID, `adminCode`를 입력합니다.
+4. `apps-script/Code.gs`를 복사한 Sheet의 Apps Script 프로젝트에 붙여 넣고 Web App으로 배포합니다.
+5. 배포된 Apps Script Web App URL을 확인합니다.
+6. `web/public/app-config.example.json`을 참고해 `web/public/app-config.json`을 학교별로 준비합니다.
+7. `appsScriptUrl`에 해당 학교의 Apps Script Web App URL을 입력합니다.
+8. GitHub Actions의 GitHub Pages 배포를 실행합니다.
+9. 관리자 화면에서 교육목록, 교직원 명단, 교육대상을 설정합니다.
+10. 관리자 QR 출력 화면에서 교육별 QR을 인쇄해 교육장에 비치합니다.
+
+## app-config.json
+
+`web/public/app-config.json`은 학교별 런타임 연결 설정입니다. 공개 템플릿에는 실제 Apps Script URL을 커밋하지 않습니다.
 
 ```json
 {
@@ -23,82 +72,67 @@
   "centerName": "학교 교직원 교육센터",
   "schoolLogo": "",
   "theme": "default",
+  "appsScriptUrl": ""
+}
+```
+
+학교에서 실제 운영할 때만 `appsScriptUrl`에 학교별 Apps Script Web App URL을 입력합니다.
+
+```json
+{
+  "schoolName": "예시고등학교",
+  "centerName": "학교 교직원 교육센터",
+  "schoolLogo": "",
+  "theme": {
+    "primaryColor": "#1F2A44",
+    "secondaryColor": "#EEF4FF"
+  },
   "appsScriptUrl": "https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec"
 }
 ```
 
-필드 설명:
+## GitHub Pages basePath
 
-- `schoolName`: 화면에 표시할 학교명
-- `centerName`: 화면 상단에 표시할 센터명
-- `schoolLogo`: 학교 로고 이미지 경로 또는 URL
-- `theme`: 기본 테마는 `"default"`를 사용합니다. 필요하면 `{ "primaryColor": "#1F2A44", "secondaryColor": "#EEF4FF" }` 형식도 사용할 수 있습니다.
-- `appsScriptUrl`: 학교별 Apps Script Web App URL
+GitHub Actions는 기본적으로 저장소 이름을 기준으로 `NEXT_PUBLIC_BASE_PATH=/${{ github.event.repository.name }}`를 사용합니다.
 
-실제 학교 설정은 `web/public/app-config.json`에서 관리합니다. `web/public/app-config.example.json`은 새 학교 설정을 만들 때 참고하는 예시 파일로 유지합니다.
-
-## 주요 기능
-
-- 학교설정 불러오기
-- 교육목록 불러오기
-- 교직원 인증
-- QR 출석
-- 전자서명 저장
-- 나의 이수현황 확인
-- 관리자 QR 출력
-- 최종 서명부 다운로드
-- 기존 이수증 제출 기능 유지 및 2차 개선
-
-## 프로젝트 구조
+저장소명이 `school-staff-training-center`이면 배포 URL은 다음 형식입니다.
 
 ```text
-.
-├─ docs/               # 설치, 구조, 배포, 개인정보, 시트 구조 문서
-├─ apps-script/        # 학교별 Apps Script API 코드
-├─ web/                # GitHub Pages 정적 웹앱
-├─ template/           # 학교별 복사용 허브시트 템플릿
-├─ .github/            # GitHub Pages/Actions 설정
-├─ README.md           # 프로젝트 소개
-├─ CODEX.md            # 개발 작업 원칙
-├─ DESIGN.md           # School Health Hub 디자인 원칙
-└─ NEXT.md             # 다음 작업 목록
+https://OWNER.github.io/school-staff-training-center/
 ```
 
-## 배포 흐름
+다른 저장소명으로 복사해도 GitHub Actions가 basePath를 자동으로 맞춥니다. 수동으로 빌드할 때는 아래처럼 지정합니다.
 
-1. `template/`의 허브시트 템플릿을 학교 Google Drive로 복사합니다.
-2. 복사한 Google Sheet의 학교설정 탭에 학교명, 로고, 색상, 담당자 정보, Drive 폴더 ID를 입력합니다.
-3. 학교별 Apps Script Web App을 배포합니다.
-4. `web/public/app-config.example.json`을 참고해 `web/public/app-config.json`을 준비합니다.
-5. `appsScriptUrl`에 학교별 Apps Script Web App URL을 입력합니다.
-6. `npm run build`를 실행하면 `web/public/app-config.json`이 `web/out/app-config.json`으로 복사됩니다.
-7. GitHub Pages에 `web/out` 정적 산출물을 배포합니다.
-8. 교직원은 GitHub Pages URL에서 QR 출석, 전자서명, 이수현황 확인을 진행합니다.
+```bash
+cd web
+NEXT_PUBLIC_BASE_PATH=/YOUR_REPOSITORY_NAME npm run build
+```
+
+Windows PowerShell에서는 다음과 같이 실행합니다.
+
+```powershell
+cd web
+$env:NEXT_PUBLIC_BASE_PATH="/YOUR_REPOSITORY_NAME"
+npm run build
+```
 
 ## 개발 명령
 
 ```bash
 cd web
-npm install
-npm run dev
+npm ci
 npm run lint
 npm run typecheck
 npm run build
 ```
 
-Next.js는 `output: "export"`로 정적 파일을 생성합니다. 배포 결과는 `web/out`에 만들어지며, `web/public/app-config.json`도 빌드 시 그대로 복사됩니다. 학교별 설정을 바꾼 뒤에는 `web/public/app-config.json`을 수정하고 다시 빌드해 GitHub Pages에 반영합니다.
+## 개인정보 원칙
 
-## 보안 원칙
+- 교직원 명단은 학교별 Google Sheet에만 저장합니다.
+- 전자서명 기록과 이수증 제출 기록은 학교별 Google Sheet에만 저장합니다.
+- 전자서명 이미지와 이수증 파일은 학교별 Google Drive에만 저장합니다.
+- GitHub Pages에는 교직원 명단, 인증코드, 서명 이미지, 이수증 파일을 저장하지 않습니다.
+- `adminCode`는 Apps Script의 검증 함수에서만 사용하고 API 응답으로 반환하지 않습니다.
+- 공개 저장소에는 실제 학교 Apps Script URL, Drive 폴더 ID, 교직원 데이터, 관리자 코드를 커밋하지 않습니다.
 
-- 교직원 명단, 인증코드, 출석기록은 학교별 Google Sheet에만 저장합니다.
-- 전자서명 이미지와 이수증 파일은 학교별 Google Drive 폴더에만 저장합니다.
-- GitHub Pages에는 민감정보를 저장하지 않습니다.
-- 실제 Apps Script URL은 `web/public/app-config.json`에서 관리하고, GitHub Pages에는 빌드 산출물로 복사된 `app-config.json`이 배포됩니다.
-
-자세한 배포 절차는 [docs/deployment.md](docs/deployment.md)를 참고합니다.
-
-## 관리자 인증 안내
-
-관리자 화면은 `00_학교설정` 탭의 `adminCode` 값으로 최소 인증을 수행합니다. 브라우저에는 인증 성공 여부만 세션 동안 저장하며, 관리자 코드 원문은 저장하지 않습니다.
-
-이 기능은 학교 내부 운영용 간단 보호 장치입니다. 외부 공개 서비스 수준의 완전한 접근 제어를 대체하지 않습니다.
+자세한 설치 절차는 [docs/setup-guide.md](docs/setup-guide.md), 배포 절차는 [docs/deployment.md](docs/deployment.md)를 참고합니다.

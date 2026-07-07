@@ -1,210 +1,74 @@
-# Apps Script API 설계
+# Apps Script 설계
 
-이 문서는 GitHub Pages 정적 웹앱에서 호출할 학교별 Apps Script Web App API 설계를 정리합니다.
+Apps Script는 학교별 Google Sheet에 붙어서 동작하는 API입니다. GitHub Pages는 화면만 제공하고 개인정보를 저장하지 않습니다.
 
-## 설계 목표
+## 주요 원칙
 
-- Google Sheet와 Google Drive를 학교별 데이터 저장소로 사용합니다.
-- GitHub Pages에는 민감정보를 저장하지 않습니다.
-- Vercel은 기본 배포 방식에서 제외합니다.
+- 개인정보는 학교별 Google Sheet와 Drive에만 저장합니다.
+- API 응답은 화면에 필요한 최소 정보만 반환합니다.
 - 교육ID와 교직원ID를 기준으로 데이터를 연결합니다.
 - 교육목록과 교직원명단은 직접 연결하지 않고 `03_교육대상`을 통해 연결합니다.
-- API 응답에는 화면 처리에 필요한 최소 정보만 반환합니다.
-- 전자서명 이미지는 지정된 Google Drive 폴더에 저장하고 Sheet에는 파일 URL만 기록합니다.
-
-## 공통 응답 형태
-
-성공 응답:
-
-```json
-{
-  "ok": true,
-  "data": {},
-  "message": "처리되었습니다."
-}
-```
-
-오류 응답:
-
-```json
-{
-  "ok": false,
-  "error": "INVALID_REQUEST",
-  "message": "요청 정보를 확인해주세요."
-}
-```
-
-오류 메시지에는 인증코드, 서명 이미지 원본, 전체 교직원 정보 같은 민감정보를 포함하지 않습니다.
-
-## 요청 라우팅
-
-GitHub Pages 정적 웹앱은 Apps Script Web App URL로 `POST` 요청을 보냅니다.
-
-```json
-{
-  "action": "getTrainingList",
-  "payload": {}
-}
-```
-
-`doPost(e)`는 `action` 값을 기준으로 내부 함수를 호출합니다.
+- QR 출석 = 전자서명 출석입니다.
+- 현장 QR 교육의 이수 기준은 `05_전자서명기록`입니다.
+- `04_QR출석기록`은 레거시/보조 로그입니다.
 
 ## 주요 함수
 
-### getSchoolConfig()
-
-`00_학교설정`에서 학교별 설정값을 읽어 GitHub Pages 화면에 전달합니다.
-
-반환 예:
-
-```json
-{
-  "schoolName": "샘플고등학교",
-  "centerName": "학교 교직원 교육센터",
-  "schoolLogoUrl": "",
-  "primaryColor": "#1F2A44",
-  "secondaryColor": "#EEF4FF",
-  "departmentName": "교무기획부",
-  "privacyNotice": "전자서명과 출석 기록은 연수 증빙용으로 저장됩니다."
-}
-```
-
-주의:
-
-- Drive 폴더 ID는 관리자 기능에 필요한 경우에만 반환합니다.
-- 일반 교직원 화면에는 민감 운영 설정을 노출하지 않습니다.
-
-### getTrainingList()
-
-`01_교육목록`에서 교육 목록을 읽습니다.
-
-반환 필드:
-
 ```text
-교육ID
-교육명
-교육일자
-교육시간
-장소
-담당부서
-교육구분
-QR사용여부
-전자서명필요여부
-활성상태
+getSchoolConfig()
+getTrainingList()
+getTrainingDetail()
+createTraining()
+updateTraining()
+updateTrainingStatus()
+getStaffByNameDept()
+getStaffList()
+createStaff()
+updateStaff()
+deactivateStaff()
+verifyAdminCode()
+getTrainingTargets()
+updateTrainingTargets()
+checkTrainingTarget()
+checkSignatureExists()
+saveSignature()
+saveBulkSignature()
+getSignatureRequiredTrainings()
+getMyTrainingStatusByNameDept()
+getCertificateRequiredTrainings()
+saveCertificateSubmission()
+getTrainingAttendanceStatus()
+getFinalAttendancePreview()
+generateFinalAttendanceSheet()
 ```
 
-### verifyStaff(payload)
+`saveQrAttendance()`와 `checkDuplicateAttendance()`는 호환을 위해 남아 있을 수 있으나 주요 운영 흐름에서는 사용하지 않습니다.
 
-교직원 본인 인증을 처리합니다.
+## 현장 QR 전자서명 흐름
 
-입력:
+1. `/attendance?trainingId=...`로 진입합니다.
+2. `getTrainingDetail()`로 교육 정보를 확인합니다.
+3. `getStaffByNameDept()`로 성명 + 소속부서 기반 본인 확인을 합니다.
+4. `checkTrainingTarget()`으로 교육대상 여부를 확인합니다.
+5. `checkSignatureExists()`로 기존 서명 기록을 확인합니다.
+6. `saveBulkSignature()`로 서명 이미지를 Drive에 저장하고 교육별 기록을 `05_전자서명기록`에 남깁니다.
+7. `05_전자서명기록`의 저장완료 기록을 이수완료로 봅니다.
 
-```json
-{
-  "name": "홍길동",
-  "authCode": "1234"
-}
-```
+## 내 이수현황
 
-반환:
+`getMyTrainingStatusByNameDept()`는 성명 + 소속부서로 교직원을 찾고 다음 기준으로 상태를 계산합니다.
 
-```json
-{
-  "staffId": "S0001",
-  "name": "홍길동",
-  "department": "교무부",
-  "position": "교사"
-}
-```
+- 현장 QR 서명 교육: `05_전자서명기록`
+- 이수증 업로드 교육: `06_이수증업로드`
 
-주의:
+## 관리자 서명/이수 현황
 
-- 인증 실패 시 어떤 항목이 틀렸는지 구체적으로 노출하지 않습니다.
-- 전체 교직원 명단을 반환하지 않습니다.
+`getTrainingAttendanceStatus()`는 `03_교육대상` 대상자 명단과 `05_전자서명기록`을 조합해 대상자 수, 서명 완료, 미서명, 이수율을 계산합니다.
 
-### checkTrainingTarget(payload)
+## 최종 서명부
 
-`03_교육대상`에서 특정 교육의 대상 여부를 확인합니다.
+`generateFinalAttendanceSheet()`는 교육별 대상자 명단에 서명여부, 서명일시, 서명파일URL을 붙여 `08_최종서명부`에 기록합니다. Drive 폴더가 설정되어 있으면 최종 서명부 파일을 생성하고 `01_교육목록`의 `서명부파일ID`, `서명부파일URL`에 반영합니다.
 
-입력:
+## 이수증 제출
 
-```json
-{
-  "trainingId": "T0001",
-  "staffId": "S0001"
-}
-```
-
-반환:
-
-```json
-{
-  "isTarget": true,
-  "isRequired": true,
-  "signatureExcluded": false
-}
-```
-
-### saveQrAttendance(payload)
-
-QR 출석을 기록합니다.
-
-처리:
-
-1. 교육ID와 교직원ID를 확인합니다.
-2. 대상 여부를 확인합니다.
-3. 중복 출석을 확인합니다.
-4. `04_QR출석기록`에 기록합니다.
-5. 전자서명 필요 여부를 반환합니다.
-
-### saveSignature(payload)
-
-전자서명 이미지를 지정 Drive 폴더에 저장하고 `05_전자서명기록`에 파일 정보를 기록합니다.
-
-주의:
-
-- 서명 이미지 원본은 GitHub Pages에 저장하지 않습니다.
-- Sheet에는 Drive 파일 ID와 URL만 기록합니다.
-
-### getMyTrainingStatus(payload)
-
-교직원 인증 후 본인의 이수현황을 반환합니다.
-
-표시 항목:
-
-- 필수 교육
-- 이수 완료 여부
-- 미이수 여부
-- 서명 완료 여부
-- 출석 일시
-
-### generateFinalAttendanceSheet(payload)
-
-관리자가 교육별 최종 서명부를 생성합니다.
-
-처리:
-
-1. 교육목록, 교육대상, 출석기록, 전자서명기록을 조합합니다.
-2. 최종 서명부 파일을 생성합니다.
-3. 지정 Drive 폴더에 저장합니다.
-4. `08_최종서명부`에 파일 ID와 URL을 기록합니다.
-
-### getAdminDashboardData()
-
-관리자 화면에 필요한 최소 요약 데이터를 반환합니다.
-
-예:
-
-- 교육 수
-- 출석 완료 수
-- 미출석 수
-- 서명 완료 수
-- 최종 서명부 생성 여부
-
-## 구현 주의사항
-
-- Apps Script URL은 GitHub Pages 코드에 하드코딩하지 않습니다.
-- GitHub Pages는 서버 API route를 사용하지 않습니다.
-- Apps Script는 `ContentService` JSON 응답을 기본으로 사용합니다.
-- 브라우저 CORS와 Apps Script Web App 배포 권한을 테스트합니다.
-- 개인정보가 로그에 남지 않도록 합니다.
+`saveCertificateSubmission()`은 이수증 파일을 지정 Drive 폴더에 저장하고 `06_이수증업로드`에 제출 기록을 남깁니다.
