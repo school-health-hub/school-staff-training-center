@@ -11,9 +11,8 @@ type StatusFilter = "all" | AdminAttendanceStatusGroup;
 
 const STATUS_FILTERS: Array<{ label: string; value: StatusFilter }> = [
   { label: "전체", value: "all" },
-  { label: "완료", value: "completed" },
-  { label: "서명 필요", value: "signature" },
-  { label: "미출석", value: "absent" }
+  { label: "이수완료", value: "completed" },
+  { label: "미서명", value: "signature" }
 ];
 
 function CheckIcon() {
@@ -50,15 +49,14 @@ function quoteCsv(value: string | number | boolean | undefined) {
 }
 
 function buildCsv(rows: AdminAttendanceStatusItem[]) {
-  const header = ["성명", "부서", "직위", "대상여부", "출석여부", "출석일시", "서명여부", "최종상태"];
+  const header = ["성명", "부서", "직위", "대상여부", "전자서명여부", "서명일시", "이수상태"];
   const body = rows.map((row) => [
     row.name,
     row.department,
     row.position,
     row.isTarget ? "대상" : "제외",
-    row.attendanceCompleted ? "출석" : "미출석",
-    row.attendedAt ?? "",
-    row.signatureRequired ? (row.signatureCompleted ? "서명 완료" : "서명 필요") : "서명 불필요",
+    row.signatureCompleted ? "서명 완료" : "미서명",
+    row.signedAt ?? row.attendedAt ?? "",
     row.finalStatus
   ]);
 
@@ -106,7 +104,7 @@ export default function AdminAttendancePage() {
       );
       setTrainings(activeTrainings);
       setSelectedTrainingId(activeTrainings[0]?.trainingId ?? "");
-      setMessage(activeTrainings.length ? "출석현황을 확인할 교육을 선택해 주세요." : "활성 교육이 없습니다.");
+      setMessage(activeTrainings.length ? "서명/이수 현황을 확인할 교육을 선택해 주세요." : "활성 교육이 없습니다.");
     }
 
     void loadPage();
@@ -125,7 +123,7 @@ export default function AdminAttendancePage() {
         return;
       }
 
-      setMessage("선택한 교육의 출석현황을 불러오는 중입니다.");
+      setMessage("선택한 교육의 서명/이수 현황을 불러오는 중입니다.");
       const result = await getTrainingAttendanceStatus(runtimeConfig, selectedTrainingId);
 
       if (ignore) {
@@ -134,12 +132,12 @@ export default function AdminAttendancePage() {
 
       if (result.error || !result.data) {
         setAttendanceStatus(undefined);
-        setMessage(result.error || "출석현황을 불러오지 못했습니다.");
+        setMessage(result.error || "서명/이수 현황을 불러오지 못했습니다.");
         return;
       }
 
       setAttendanceStatus(result.data);
-      setMessage("출석현황을 불러왔습니다.");
+      setMessage("서명/이수 현황을 불러왔습니다.");
     }
 
     void loadAttendanceStatus();
@@ -177,7 +175,7 @@ export default function AdminAttendancePage() {
       <main className="page">
       <div className="dashboard-shell">
         <div className="route-actions">
-          <span className="page-toolbar-title">출석현황</span>
+          <span className="page-toolbar-title">서명/이수 현황</span>
           <a className="ghost-button" href={`${APP_BASE_PATH}/`}>
             홈으로
           </a>
@@ -187,14 +185,14 @@ export default function AdminAttendancePage() {
           <AdminLogoutButton />
         </div>
 
-        <section className="today-card" aria-label="출석현황">
+        <section className="today-card" aria-label="서명/이수 현황">
           <div className="today-copy">
             <div className="section-kicker">
               <CheckIcon />
-              <span>출석현황</span>
+              <span>서명/이수 현황</span>
             </div>
-            <h1>교육별 출석과 전자서명 상태를 확인합니다.</h1>
-            <p>대상자 기준으로 출석 완료, 서명 완료, 미완료 인원을 한눈에 확인할 수 있습니다.</p>
+            <h1>교육별 전자서명과 이수 상태를 확인합니다.</h1>
+            <p>전자서명 기록을 출석 및 이수 증빙으로 사용하며, 05_전자서명기록 기준으로 현황을 계산합니다.</p>
           </div>
         </section>
 
@@ -209,7 +207,7 @@ export default function AdminAttendancePage() {
             <div className="section-head">
               <div>
                 <h2>교육 선택</h2>
-                <p>출석현황을 확인할 활성 교육을 선택하세요.</p>
+                <p>서명/이수 현황을 확인할 활성 교육을 선택하세요.</p>
               </div>
             </div>
 
@@ -226,7 +224,7 @@ export default function AdminAttendancePage() {
                     <p>{trainingMeta(training)}</p>
                     <div className="badge-row">
                       <span>{training.trainingId}</span>
-                      <span>{training.signatureRequired ? "서명 필요" : "서명 없음"}</span>
+                      <span>전자서명 기준</span>
                     </div>
                   </button>
                 ))}
@@ -241,10 +239,10 @@ export default function AdminAttendancePage() {
             )}
           </section>
 
-          <section className="training-section" aria-label="출석현황 상세">
+          <section className="training-section" aria-label="서명/이수 현황 상세">
             <div className="section-head">
               <div>
-                <h2>{selectedTraining?.title ?? "출석현황"}</h2>
+                <h2>{selectedTraining?.title ?? "서명/이수 현황"}</h2>
                 <p>{selectedTraining ? trainingMeta(selectedTraining) : "교육을 선택하면 대상자 현황이 표시됩니다."}</p>
               </div>
               <button className="ghost-button" disabled={!filteredItems.length} onClick={handleDownloadCsv} type="button">
@@ -254,13 +252,13 @@ export default function AdminAttendancePage() {
 
             {attendanceStatus ? (
               <>
-                <section className="status-summary-grid" aria-label="출석현황 요약">
+                <section className="status-summary-grid" aria-label="서명/이수 현황 요약">
                   <div className="status-summary-card">
                     <span>대상자 수</span>
                     <strong>{attendanceStatus.summary.targetCount}</strong>
                   </div>
                   <div className="status-summary-card">
-                    <span>출석 완료</span>
+                    <span>이수완료</span>
                     <strong>{attendanceStatus.summary.attendanceCompleted}</strong>
                   </div>
                   <div className="status-summary-card">
@@ -268,7 +266,7 @@ export default function AdminAttendancePage() {
                     <strong>{attendanceStatus.summary.signatureCompleted}</strong>
                   </div>
                   <div className="status-summary-card">
-                    <span>미완료</span>
+                    <span>미이수</span>
                     <strong>{attendanceStatus.summary.incomplete}</strong>
                   </div>
                 </section>
@@ -302,10 +300,9 @@ export default function AdminAttendancePage() {
                             <th>부서</th>
                             <th>직위</th>
                             <th>대상</th>
-                            <th>출석</th>
-                            <th>출석일시</th>
-                            <th>서명</th>
-                            <th>최종상태</th>
+                            <th>전자서명</th>
+                            <th>서명일시</th>
+                            <th>이수상태</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -315,9 +312,8 @@ export default function AdminAttendancePage() {
                               <td>{item.department || "-"}</td>
                               <td>{item.position || "-"}</td>
                               <td>{item.isTarget ? "대상" : "제외"}</td>
-                              <td>{item.attendanceCompleted ? "완료" : "미출석"}</td>
-                              <td>{item.attendedAt || "-"}</td>
-                              <td>{item.signatureRequired ? (item.signatureCompleted ? "완료" : "필요") : "불필요"}</td>
+                              <td>{item.signatureCompleted ? "완료" : "미서명"}</td>
+                              <td>{item.signedAt || item.attendedAt || "-"}</td>
                               <td>
                                 <span className={statusClassName(item.statusGroup)}>{item.finalStatus}</span>
                               </td>
@@ -341,10 +337,10 @@ export default function AdminAttendancePage() {
                           </div>
                           <div className="badge-row">
                             <span>{item.isTarget ? "대상" : "제외"}</span>
-                            <span>{item.attendanceCompleted ? "출석 완료" : "미출석"}</span>
-                            <span>{item.signatureRequired ? (item.signatureCompleted ? "서명 완료" : "서명 필요") : "서명 불필요"}</span>
+                            <span>{item.signatureCompleted ? "서명 완료" : "미서명"}</span>
+                            <span>{item.finalStatus}</span>
                           </div>
-                          {item.attendedAt ? <p>출석일시: {item.attendedAt}</p> : null}
+                          {item.signedAt || item.attendedAt ? <p>서명일시: {item.signedAt || item.attendedAt}</p> : null}
                         </article>
                       ))}
                     </div>
@@ -358,8 +354,8 @@ export default function AdminAttendancePage() {
             ) : (
               <div className="empty-training">
                 <div>
-                  <strong>출석현황 대기 중</strong>
-                  <p>교육을 선택하면 대상자별 출석과 서명 상태가 표시됩니다.</p>
+                  <strong>서명/이수 현황 대기 중</strong>
+                  <p>교육을 선택하면 대상자별 전자서명과 이수 상태가 표시됩니다.</p>
                 </div>
               </div>
             )}

@@ -6,17 +6,17 @@ const APP_BASE_PATH = getBasePath();
 const adminItems = [
   {
     title: "QR 출력",
-    description: "교육별 출석 QR을 생성하고 인쇄합니다.",
+    description: "교육별 QR을 생성하고 인쇄합니다.",
     href: "/admin/qr"
   },
   {
-    title: "출석현황",
-    description: "교육별 출석과 전자서명 상태를 확인합니다.",
+    title: "서명/이수 현황",
+    description: "교육별 전자서명 제출 현황과 이수 상태를 확인합니다.",
     href: "/admin/attendance"
   },
   {
     title: "최종 서명부",
-    description: "감사와 증빙용 최종 서명부를 생성합니다.",
+    description: "전자서명 기록을 기준으로 최종 서명부를 생성합니다.",
     href: "/admin/final-sheet"
   },
   {
@@ -77,7 +77,7 @@ export default function AdminPage() {
                 <span>ADMIN DASHBOARD</span>
               </div>
               <h1>교육 운영 도구를 관리합니다.</h1>
-              <p>교육목록, QR 출력, 출석현황, 최종 서명부, 교직원 명단과 학교 설정을 한곳에서 관리합니다.</p>
+              <p>교육목록, QR 출력, 서명/이수 현황, 최종 서명부, 교직원 명단과 학교 설정을 한곳에서 관리합니다.</p>
             </div>
           </section>
 

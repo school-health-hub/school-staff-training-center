@@ -840,7 +840,7 @@ function getTrainingAttendanceStatus(payload) {
       signatureRequired: signatureRequired,
       signatureCompleted: signatureRequired ? signatureSaved : false,
       signedAt: signature ? normalizeDateTime_(signature[SIGNATURE.SIGNED_AT]) : "",
-      finalStatus: statusGroup === "completed" ? "완료" : statusGroup === "signature" ? "서명 필요" : "미출석",
+      finalStatus: statusGroup === "completed" ? "이수완료" : "미이수",
       statusGroup: statusGroup
     };
   });

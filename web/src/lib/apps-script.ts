@@ -642,7 +642,7 @@ export async function getTrainingAttendanceStatus(
     return { data };
   } catch (error) {
     return {
-      error: error instanceof Error ? error.message : "교육별 출석현황을 불러오지 못했습니다."
+      error: error instanceof Error ? error.message : "교육별 서명/이수 현황을 불러오지 못했습니다."
     };
   }
 }

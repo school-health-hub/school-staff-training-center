@@ -283,7 +283,7 @@ export type AdminAttendanceStatusItem = {
   signatureRequired: boolean;
   signatureCompleted: boolean;
   signedAt?: string;
-  finalStatus: "완료" | "서명 필요" | "미출석";
+  finalStatus: "이수완료" | "미이수" | "완료" | "서명 필요" | "미출석";
   statusGroup: AdminAttendanceStatusGroup;
 };
 
