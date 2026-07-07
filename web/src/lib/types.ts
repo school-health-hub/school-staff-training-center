@@ -291,7 +291,10 @@ export type AdminAttendanceStatusSummary = {
   targetCount: number;
   attendanceCompleted: number;
   signatureCompleted: number;
+  signedCount?: number;
+  unsignedCount?: number;
   incomplete: number;
+  completionRate?: number;
 };
 
 export type AdminAttendanceStatusResult = {

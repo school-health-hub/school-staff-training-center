@@ -11,7 +11,7 @@ type StatusFilter = "all" | AdminAttendanceStatusGroup;
 
 const STATUS_FILTERS: Array<{ label: string; value: StatusFilter }> = [
   { label: "전체", value: "all" },
-  { label: "이수완료", value: "completed" },
+  { label: "서명 완료", value: "completed" },
   { label: "미서명", value: "signature" }
 ];
 
@@ -70,6 +70,7 @@ export default function AdminAttendancePage() {
   const [attendanceStatus, setAttendanceStatus] = useState<AdminAttendanceStatusResult>();
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [departmentFilter, setDepartmentFilter] = useState("all");
   const [message, setMessage] = useState("교육목록을 불러오는 중입니다.");
 
   useEffect(() => {
@@ -137,6 +138,7 @@ export default function AdminAttendancePage() {
       }
 
       setAttendanceStatus(result.data);
+      setDepartmentFilter("all");
       setMessage("서명/이수 현황을 불러왔습니다.");
     }
 
@@ -148,16 +150,33 @@ export default function AdminAttendancePage() {
   }, [runtimeConfig, selectedTrainingId]);
 
   const selectedTraining = trainings.find((training) => training.trainingId === selectedTrainingId);
+  const departments = useMemo(() => {
+    const values = new Set<string>();
+    (attendanceStatus?.items ?? []).forEach((item) => {
+      const department = item.department.trim();
+      if (department) {
+        values.add(department);
+      }
+    });
+    return Array.from(values).sort((a, b) => a.localeCompare(b));
+  }, [attendanceStatus?.items]);
   const filteredItems = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
 
     return (attendanceStatus?.items ?? []).filter((item) => {
       const matchesStatus = statusFilter === "all" || item.statusGroup === statusFilter;
-      const haystack = [item.name, item.department, item.position, item.finalStatus].join(" ").toLowerCase();
+      const matchesDepartment = departmentFilter === "all" || item.department === departmentFilter;
+      const haystack = [item.name, item.department].join(" ").toLowerCase();
       const matchesQuery = !normalizedQuery || haystack.includes(normalizedQuery);
-      return matchesStatus && matchesQuery;
+      return matchesStatus && matchesDepartment && matchesQuery;
     });
-  }, [attendanceStatus?.items, query, statusFilter]);
+  }, [attendanceStatus?.items, departmentFilter, query, statusFilter]);
+
+  const signedCount = attendanceStatus?.summary.signedCount ?? attendanceStatus?.summary.signatureCompleted ?? 0;
+  const unsignedCount = attendanceStatus?.summary.unsignedCount ?? attendanceStatus?.summary.incomplete ?? 0;
+  const completionRate =
+    attendanceStatus?.summary.completionRate ??
+    (attendanceStatus?.summary.targetCount ? Math.round((signedCount / attendanceStatus.summary.targetCount) * 100) : 0);
 
   function handleDownloadCsv() {
     const csv = `\uFEFF${buildCsv(filteredItems)}`;
@@ -258,23 +277,34 @@ export default function AdminAttendancePage() {
                     <strong>{attendanceStatus.summary.targetCount}</strong>
                   </div>
                   <div className="status-summary-card">
-                    <span>이수완료</span>
-                    <strong>{attendanceStatus.summary.attendanceCompleted}</strong>
-                  </div>
-                  <div className="status-summary-card">
                     <span>서명 완료</span>
-                    <strong>{attendanceStatus.summary.signatureCompleted}</strong>
+                    <strong>{signedCount}</strong>
                   </div>
                   <div className="status-summary-card">
-                    <span>미이수</span>
-                    <strong>{attendanceStatus.summary.incomplete}</strong>
+                    <span>미서명</span>
+                    <strong>{unsignedCount}</strong>
+                  </div>
+                  <div className="status-summary-card">
+                    <span>이수율</span>
+                    <strong>{completionRate}%</strong>
                   </div>
                 </section>
 
                 <div className="admin-attendance-controls">
                   <label className="field-group">
                     <span>검색</span>
-                    <input onChange={(event) => setQuery(event.target.value)} placeholder="성명, 부서, 직위 검색" type="search" value={query} />
+                    <input onChange={(event) => setQuery(event.target.value)} placeholder="성명 또는 소속부서 검색" type="search" value={query} />
+                  </label>
+                  <label className="field-group">
+                    <span>부서별</span>
+                    <select onChange={(event) => setDepartmentFilter(event.target.value)} value={departmentFilter}>
+                      <option value="all">전체 부서</option>
+                      {departments.map((department) => (
+                        <option key={department} value={department}>
+                          {department}
+                        </option>
+                      ))}
+                    </select>
                   </label>
                   <div className="filter-pills" aria-label="상태 필터">
                     {STATUS_FILTERS.map((filter) => (

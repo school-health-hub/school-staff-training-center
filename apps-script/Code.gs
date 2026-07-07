@@ -844,13 +844,19 @@ function getTrainingAttendanceStatus(payload) {
       statusGroup: statusGroup
     };
   });
+  var signedCount = items.filter(function (item) { return item.signatureCompleted; }).length;
+  var unsignedCount = items.length - signedCount;
+  var completionRate = items.length ? Math.round((signedCount / items.length) * 100) : 0;
   return successResponse({
     training: normalizedTraining,
     summary: {
       targetCount: items.length,
-      attendanceCompleted: items.filter(function (item) { return item.attendanceCompleted; }).length,
-      signatureCompleted: items.filter(function (item) { return item.signatureCompleted; }).length,
-      incomplete: items.filter(function (item) { return item.statusGroup !== "completed"; }).length
+      attendanceCompleted: signedCount,
+      signatureCompleted: signedCount,
+      signedCount: signedCount,
+      unsignedCount: unsignedCount,
+      incomplete: unsignedCount,
+      completionRate: completionRate
     },
     items: items
   });
