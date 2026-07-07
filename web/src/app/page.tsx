@@ -351,8 +351,8 @@ export default function HomePage() {
               </>
             ) : (
               <>
-                <h2>등록된 교육이 없습니다.</h2>
-                <p>교육목록이 준비되면 오늘 운영 중인 교육이 이곳에 표시됩니다.</p>
+                <h2>교직원 교육을 한 곳에서 관리하세요.</h2>
+                <p>교육목록을 등록하면 오늘 운영 중인 교육과 진행 현황이 이곳에 표시됩니다.</p>
               </>
             )}
           </div>
@@ -423,8 +423,8 @@ export default function HomePage() {
                   <Icon name="calendar" />
                 </span>
                 <div>
-                  <strong>표시할 교육목록이 없습니다.</strong>
-                  <p>학교 Google Sheet에 교육목록을 등록하면 이곳에 카드로 표시됩니다.</p>
+                  <strong>아직 등록된 교육목록이 없습니다.</strong>
+                  <p>학교 Google Sheet에 교육을 등록하면 교육 일정과 제출 필요 여부가 이곳에 표시됩니다.</p>
                 </div>
               </div>
             )}

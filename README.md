@@ -1,38 +1,83 @@
-# 학교 교직원 교육센터
+# School Health Hub - 교직원 교육센터
 
-**School Staff Training Center**는 학교에서 반복 운영하는 교직원 연수, 법정의무교육, 안전교육, 전달연수의 전자서명 출석, 이수현황, 이수증 제출, 최종 서명부를 관리하기 위한 공용 템플릿입니다.
+> 학교에서 바로 사용할 수 있는 Google Workspace 기반 교직원 교육 관리 시스템
 
-공용 배포 구조는 **GitHub Pages + Apps Script + Google Sheet + Google Drive**입니다.
+QR 출석부터 전자서명, 이수증 제출, 이수현황 조회까지 하나의 워크플로우로 관리할 수 있습니다.
 
-- GitHub Pages: 정적 화면 제공
-- Apps Script: 학교별 Google Sheet/Drive 읽기·쓰기 API
-- Google Sheet: 학교설정, 교육목록, 교직원명단, 교육대상, 전자서명기록, 이수증업로드 기록 저장
-- Google Drive: 전자서명 이미지, 이수증 파일, 최종 서명부 파일 저장
+이 저장소는 특정 학교 전용 앱이 아니라, 학교별로 복사해 사용할 수 있는 공개 템플릿입니다. 실제 운영 전에는 학교별 Google Sheet, Apps Script, `app-config.json` 설정이 필요합니다.
+
+## 주요 기능
+
+- 교육목록 관리
+- 현장 QR 기반 전자서명 출석
+- 교육 전자서명
+- 외부 연수 이수증 제출
+- 개인 이수현황 조회
+- 관리자 교육 운영 및 최종 서명부 생성
+- Google Sheets + Google Drive 기반 운영
+- 개인정보는 학교 Google Workspace에서 관리
+
+## 시스템 구성
+
+```text
+Google Sheets
+→ Apps Script Web App
+→ GitHub Pages
+→ 교직원 교육센터
+```
+
+GitHub Pages는 정적 화면만 제공하고, 데이터 읽기·쓰기와 파일 저장은 학교별 Apps Script, Google Sheets, Google Drive가 담당합니다.
+
+## 교육 진행 흐름
+
+1. 관리자가 교육 등록
+2. 교육 대상 지정
+3. QR 생성 및 출력
+4. 교직원이 QR 스캔
+5. 성명·소속 확인
+6. 전자서명
+7. Google Sheets 저장
+8. 이수 완료
+9. 관리자 최종 서명부 생성
+
+## 템플릿 사용 방법
+
+1. Use this template로 저장소 생성
+2. Google Sheet 템플릿 복사
+3. Apps Script 복사 및 웹앱 배포
+4. `app-config.json`에 Apps Script URL 입력
+5. GitHub Pages 활성화
+6. 학교별 교직원 교육센터 완성
+
+공개 저장소에는 실제 학교 Apps Script URL, Drive 폴더 ID, 교직원 데이터, 관리자 코드를 커밋하지 마세요. 학교별 운영 정보는 복사한 학교 저장소와 학교 Google Workspace에서만 관리합니다.
+
+## 기술 스택
+
+- Next.js
+- TypeScript
+- GitHub Pages
+- Google Apps Script
+- Google Sheets
+- Google Drive
+
+## 특징
+
+- 서버 구축 없이 운영 가능
+- 학교별 독립 운영
+- 개인정보는 학교 Google 계정 내 저장
+- 공개 템플릿 기반으로 손쉽게 배포
+- QR 출석 = 전자서명 = 이수 처리의 단일 워크플로우
 
 ## 운영 기준
 
 - QR 출석 = 전자서명 출석입니다.
-- 현장 QR 교육은 `전자서명 불필요` 방식으로 운영하지 않습니다.
+- 현장 QR 교육은 전자서명 출석으로 운영합니다.
 - 교직원이 교육장 QR을 스캔하면 `/attendance?trainingId=...`로 진입합니다.
 - 성명 + 소속부서로 본인 확인 후 바로 전자서명을 제출합니다.
 - `05_전자서명기록`이 현장 교육의 출석 및 이수 기준입니다.
 - `04_QR출석기록`은 레거시/보조 로그로만 취급하며 최종 이수 판정 기준으로 사용하지 않습니다.
 - 일반 교직원 화면에서는 인증코드를 요구하지 않습니다.
 - 관리자 화면은 `00_학교설정`의 `adminCode`로 보호합니다.
-
-## 주요 기능
-
-- 학교설정 불러오기
-- 교육목록 불러오기
-- 성명 + 소속부서 기반 교직원 확인
-- 현장 QR 전자서명 출석
-- 여러 교육 일괄 전자서명
-- 내 이수현황 확인
-- 이수증 제출
-- 관리자 QR 출력
-- 관리자 서명/이수 현황
-- 교육목록/교육대상/교직원 명단 관리
-- 최종 서명부 생성 및 다운로드
 
 ## 프로젝트 구조
 
@@ -49,19 +94,6 @@
 └─ NEXT.md
 ```
 
-## 학교별 복사 배포 흐름
-
-1. 이 GitHub 저장소를 학교 또는 담당자 계정으로 복사합니다.
-2. `template/`의 허브시트 템플릿을 학교 Google Drive로 복사합니다.
-3. 복사한 Google Sheet의 `00_학교설정`에 학교명, 담당부서, Drive 폴더 ID, `adminCode`를 입력합니다.
-4. `apps-script/Code.gs`를 복사한 Sheet의 Apps Script 프로젝트에 붙여 넣고 Web App으로 배포합니다.
-5. 배포된 Apps Script Web App URL을 확인합니다.
-6. `web/public/app-config.example.json`을 참고해 `web/public/app-config.json`을 학교별로 준비합니다.
-7. `appsScriptUrl`에 해당 학교의 Apps Script Web App URL을 입력합니다.
-8. GitHub Actions의 GitHub Pages 배포를 실행합니다.
-9. 관리자 화면에서 교육목록, 교직원 명단, 교육대상을 설정합니다.
-10. 관리자 QR 출력 화면에서 교육별 QR을 인쇄해 교육장에 비치합니다.
-
 ## app-config.json
 
 `web/public/app-config.json`은 학교별 런타임 연결 설정입니다. 공개 템플릿에는 실제 Apps Script URL을 커밋하지 않습니다.
@@ -76,20 +108,7 @@
 }
 ```
 
-학교에서 실제 운영할 때만 `appsScriptUrl`에 학교별 Apps Script Web App URL을 입력합니다.
-
-```json
-{
-  "schoolName": "예시고등학교",
-  "centerName": "학교 교직원 교육센터",
-  "schoolLogo": "",
-  "theme": {
-    "primaryColor": "#1F2A44",
-    "secondaryColor": "#EEF4FF"
-  },
-  "appsScriptUrl": "https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec"
-}
-```
+학교에서 실제 운영할 때만 `appsScriptUrl`에 학교별 Apps Script Web App URL을 입력합니다. 설정 예시는 `web/public/app-config.example.json`을 참고하세요.
 
 ## GitHub Pages basePath
 
@@ -134,5 +153,16 @@ npm run build
 - GitHub Pages에는 교직원 명단, 인증코드, 서명 이미지, 이수증 파일을 저장하지 않습니다.
 - `adminCode`는 Apps Script의 검증 함수에서만 사용하고 API 응답으로 반환하지 않습니다.
 - 공개 저장소에는 실제 학교 Apps Script URL, Drive 폴더 ID, 교직원 데이터, 관리자 코드를 커밋하지 않습니다.
+
+## 데모
+
+https://school-health-hub.github.io/school-staff-training-center/
+
+## 제작
+
+School Health Hub
+
+- Instagram: https://www.instagram.com/ssuvibe_t/
+- Blog: https://blog.naver.com/bogun_sh
 
 자세한 설치 절차는 [docs/setup-guide.md](docs/setup-guide.md), 배포 절차는 [docs/deployment.md](docs/deployment.md)를 참고합니다.
