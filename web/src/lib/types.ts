@@ -200,15 +200,20 @@ export type MyTrainingStatusItem = {
   time: string;
   place: string;
   department: string;
+  category?: string;
   required: boolean;
   attendanceRequired: boolean;
   attendanceCompleted: boolean;
   signatureRequired: boolean;
   signatureCompleted: boolean;
+  signatureStatus?: string;
   certificateRequired: boolean;
   certificateSubmitted: boolean;
   certificateApproved?: boolean;
-  finalStatus: "이수완료" | "미이수" | "확인필요";
+  certificateStatus?: string;
+  completionMethod?: string;
+  nextAction?: string;
+  finalStatus: "이수완료" | "미이수" | "확인필요" | "제출완료" | "승인대기" | "미제출";
   statusGroup: MyTrainingStatusGroup;
   attendedAt?: string;
   signedAt?: string;
@@ -222,6 +227,7 @@ export type MyTrainingStatusSummary = {
   certificateMissing: number;
   incomplete: number;
   review: number;
+  completionRate?: number;
 };
 
 export type MyTrainingStatusResult = {

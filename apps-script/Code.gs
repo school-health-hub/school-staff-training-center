@@ -931,26 +931,34 @@ function buildMyTrainingStatus_(staff) {
     return text_(row[TARGET.STAFF_ID]) === staffId && isTargetRow_(row);
   });
   var trainings = readTable(SHEETS.TRAININGS, [TRAINING.ID, TRAINING.TITLE]);
-  var attendances = readTableOptional_(SHEETS.ATTENDANCE);
   var signatures = readTableOptional_(SHEETS.SIGNATURES);
   var certificates = readTableOptional_(SHEETS.CERTIFICATES);
   var items = targets.map(function (target) {
     var training = findInRows_(trainings, TRAINING.ID, target[TARGET.TRAINING_ID]);
     if (!training) return null;
     var normalized = normalizeTraining_(training);
-    var attendance = findInRows2_(attendances, ATTENDANCE.TRAINING_ID, normalized.trainingId, ATTENDANCE.STAFF_ID, staffId);
     var signatureRequired = signatureRequiredForTarget_(normalized, target);
     var signature = findInRows2_(signatures, SIGNATURE.TRAINING_ID, normalized.trainingId, SIGNATURE.STAFF_ID, staffId);
     var signatureSaved = isSignatureSaved_(signature);
     var certificate = findCertificate_(normalized.trainingId, staffId, certificates);
-    var final = completionStatus_({
-      attendanceCompleted: signatureRequired ? signatureSaved : (!normalized.qrEnabled || Boolean(attendance)),
-      signatureRequired: signatureRequired,
-      signatureCompleted: signatureSaved,
-      certificateRequired: normalized.certificateRequired,
-      certificateSubmitted: Boolean(certificate),
-      certificateApproved: certificate ? isApprovedCertificate_(certificate) : false
-    });
+    var certificateTarget = normalized.certificateRequired &&
+      (target[TARGET.CERTIFICATE_TARGET] === undefined || target[TARGET.CERTIFICATE_TARGET] === "" || normalizeBoolean(target[TARGET.CERTIFICATE_TARGET]));
+    var certificateSubmitted = Boolean(certificate);
+    var certificateApproved = certificate ? isApprovedCertificate_(certificate) : false;
+    var certificateStatus = certificate ? text_(certificate[CERTIFICATE.STATUS]) || "승인대기" : "미제출";
+    var completionMethod = certificateTarget ? "이수증 제출" : "현장 서명";
+    var final = null;
+    if (certificateTarget) {
+      final = certificateApproved
+        ? { label: "이수완료", group: "completed" }
+        : certificateSubmitted
+          ? { label: certificateStatus === "제출완료" ? "제출완료" : "승인대기", group: "review" }
+          : { label: "미제출", group: "incomplete" };
+    } else {
+      final = signatureSaved
+        ? { label: "이수완료", group: "completed" }
+        : { label: "미이수", group: "incomplete" };
+    }
     return {
       trainingId: normalized.trainingId,
       title: normalized.title,
@@ -958,19 +966,24 @@ function buildMyTrainingStatus_(staff) {
       time: normalized.time,
       place: normalized.place,
       department: normalized.department,
+      category: normalized.category,
       required: normalizeBoolean(target[TARGET.REQUIRED]),
-      attendanceRequired: signatureRequired ? false : normalized.qrEnabled,
-      attendanceCompleted: signatureRequired ? signatureSaved : Boolean(attendance),
+      attendanceRequired: false,
+      attendanceCompleted: signatureSaved,
       signatureRequired: signatureRequired,
       signatureCompleted: signatureRequired ? signatureSaved : false,
-      certificateRequired: normalized.certificateRequired,
-      certificateSubmitted: Boolean(certificate),
-      certificateApproved: certificate ? isApprovedCertificate_(certificate) : false,
+      signatureStatus: signatureSaved ? "서명 완료" : "미서명",
+      certificateRequired: certificateTarget,
+      certificateSubmitted: certificateSubmitted,
+      certificateApproved: certificateApproved,
+      certificateStatus: certificateStatus,
+      completionMethod: completionMethod,
+      nextAction: final.group === "completed"
+        ? ""
+        : (certificateTarget ? (certificateSubmitted ? "" : "이수증 제출 필요") : "현장 서명 필요"),
       finalStatus: final.label,
       statusGroup: final.group,
-      attendedAt: signatureRequired
-        ? (signature ? normalizeDateTime_(signature[SIGNATURE.SIGNED_AT]) : "")
-        : (attendance ? normalizeDateTime_(attendance[ATTENDANCE.ATTENDED_AT]) : ""),
+      attendedAt: signatureSaved ? normalizeDateTime_(signature[SIGNATURE.SIGNED_AT]) : "",
       signedAt: signature ? normalizeDateTime_(signature[SIGNATURE.SIGNED_AT]) : "",
       certificateSubmittedAt: certificate ? normalizeDateTime_(certificate[CERTIFICATE.SUBMITTED_AT]) : ""
     };
@@ -985,7 +998,8 @@ function buildMyTrainingStatus_(staff) {
       certificateSubmitted: items.filter(function (item) { return item.certificateRequired && item.certificateSubmitted; }).length,
       certificateMissing: items.filter(function (item) { return item.certificateRequired && !item.certificateSubmitted; }).length,
       incomplete: items.filter(function (item) { return item.statusGroup === "incomplete"; }).length,
-      review: items.filter(function (item) { return item.statusGroup === "review"; }).length
+      review: items.filter(function (item) { return item.statusGroup === "review"; }).length,
+      completionRate: items.length ? Math.round((items.filter(function (item) { return item.statusGroup === "completed"; }).length / items.length) * 100) : 0
     },
     items: items
   });
