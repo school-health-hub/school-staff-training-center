@@ -13,6 +13,15 @@ const QR_DATA_CODEWORDS = 108;
 const QR_EC_CODEWORDS = 26;
 
 type QrModule = boolean | null;
+type QrCell = {
+  x: number;
+  y: number;
+};
+
+type QrSvgData = {
+  size: number;
+  cells: QrCell[];
+};
 
 function CheckIcon() {
   return (
@@ -235,7 +244,7 @@ function drawCodewords(matrix: QrModule[][], codewords: number[]) {
   }
 }
 
-function createQrSvg(text: string) {
+function createQrSvgData(text: string): QrSvgData {
   const matrix = makeMatrix();
   drawFunctionPatterns(matrix);
   drawFormatBits(matrix, 0);
@@ -244,17 +253,17 @@ function createQrSvg(text: string) {
 
   const quiet = 4;
   const size = QR_SIZE + quiet * 2;
-  const cells: string[] = [];
+  const cells: QrCell[] = [];
 
   matrix.forEach((row, rowIndex) => {
     row.forEach((dark, colIndex) => {
       if (dark) {
-        cells.push(`<rect x="${colIndex + quiet}" y="${rowIndex + quiet}" width="1" height="1"/>`);
+        cells.push({ x: colIndex + quiet, y: rowIndex + quiet });
       }
     });
   });
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" role="img" aria-label="QR 코드"><rect width="100%" height="100%" fill="#fff"/><g fill="#0f172a">${cells.join("")}</g></svg>`;
+  return { size, cells };
 }
 
 export default function AdminQrPage() {
@@ -310,7 +319,7 @@ export default function AdminQrPage() {
 
   const selectedTraining = trainings.find((training) => training.trainingId === selectedTrainingId);
   const qrUrl = selectedTraining ? attendanceUrl(selectedTraining.trainingId) : "";
-  const qrSvg = useMemo(() => (qrUrl ? createQrSvg(qrUrl) : ""), [qrUrl]);
+  const qrSvg = useMemo(() => (qrUrl ? createQrSvgData(qrUrl) : undefined), [qrUrl]);
 
   return (
     <AdminAuthGate>
@@ -409,7 +418,18 @@ export default function AdminQrPage() {
                   </div>
                 </dl>
 
-                <div className="qr-code-wrap" dangerouslySetInnerHTML={{ __html: qrSvg }} />
+                <div className="qr-code-wrap">
+                  {qrSvg ? (
+                    <svg aria-label="QR 코드" role="img" viewBox={`0 0 ${qrSvg.size} ${qrSvg.size}`} xmlns="http://www.w3.org/2000/svg">
+                      <rect fill="#ffffff" height="100%" width="100%" />
+                      <g fill="#0f172a">
+                        {qrSvg.cells.map((cell) => (
+                          <rect height="1" key={`${cell.x}-${cell.y}`} width="1" x={cell.x} y={cell.y} />
+                        ))}
+                      </g>
+                    </svg>
+                  ) : null}
+                </div>
                 <p className="qr-url">{qrUrl}</p>
 
                 <div className="qr-actions print-hidden">

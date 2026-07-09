@@ -1,6 +1,7 @@
 "use client";
 
 import { DEFAULT_CONFIG, getSchoolConfig, getTrainingList, loadAppConfig } from "@/lib/apps-script";
+import { getBasePath } from "@/lib/paths";
 import type { SchoolConfig, Training } from "@/lib/types";
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 
@@ -177,7 +178,7 @@ const featureCards = [
   }
 ];
 
-const APP_BASE_PATH = "/school-staff-training-center";
+const APP_BASE_PATH = getBasePath();
 
 function Icon({ name }: { name: IconName }) {
   return (
@@ -443,7 +444,10 @@ export default function HomePage() {
         <footer className="footer-bar">
           <div>
             <Icon name="shield" />
-            <span>{config.privacyNotice || "전자서명과 출석 기록은 연수 증빙용으로 학교 Google Sheet와 Google Drive에 저장됩니다."}</span>
+            <span>
+              {config.privacyNotice || "전자서명과 출석 기록은 연수 증빙용으로 학교 Google Sheet와 Google Drive에 저장됩니다."}
+              <a href={`${APP_BASE_PATH}/privacy`}>개인정보처리방침</a>
+            </span>
           </div>
           <p>© 2026 School Staff Training Center</p>
         </footer>

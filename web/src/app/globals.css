@@ -1528,10 +1528,44 @@ p {
   line-height: 1.55;
 }
 
+.footer-bar a {
+  display: inline-flex;
+  margin-left: 10px;
+  color: #3730a3;
+  font-weight: 950;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .footer-bar p {
   color: var(--muted);
   font-size: 12px;
   font-weight: 700;
+}
+
+.privacy-page .today-card {
+  align-items: start;
+}
+
+.privacy-page .training-section h2 {
+  color: var(--navy);
+  font-size: 20px;
+  font-weight: 950;
+}
+
+.privacy-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding-left: 20px;
+  color: #475569;
+  font-size: 14px;
+  font-weight: 720;
+  line-height: 1.65;
+}
+
+.privacy-list strong {
+  color: var(--navy);
 }
 
 .icon {

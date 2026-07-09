@@ -1,0 +1,16 @@
+{
+  "app": {
+    "name": "학교 교직원 교육센터",
+    "url": "https://school-health-hub.github.io/school-staff-training-center/",
+    "stack": "Next.js"
+  },
+  "tracks": [
+    "security",
+    "edzip"
+  ],
+  "edzipCase": "A",
+  "teacher": {
+    "dormsHandle": ""
+  },
+  "ownershipConfirmed": true
+}

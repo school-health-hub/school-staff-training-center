@@ -59,6 +59,19 @@ main 브랜치에 push하면 workflow가 실행됩니다.
 5. `web/out`을 GitHub Pages artifact로 업로드
 6. GitHub Pages에 배포
 
+## 도름스 보안 점검용 배포
+
+GitHub Pages는 정적 파일 배포에는 적합하지만, 저장소 파일만으로 CSP, X-Frame-Options, X-Content-Type-Options, Permissions-Policy 같은 보안 응답 헤더를 직접 설정할 수 없습니다.
+
+도름스 보안 체크 인증마크까지 목표로 할 때는 다음 중 하나의 방식으로 배포합니다.
+
+1. Cloudflare Pages 또는 Netlify에 `web/out` 폴더를 배포합니다.
+2. `web/public/_headers` 파일이 최종 산출물인 `web/out/_headers`에 포함되는지 확인합니다.
+3. 새 배포 URL을 기준으로 `dorms-check.config.json`의 `app.url`을 변경합니다.
+4. 새 배포 URL로 `npx -y github:shinnanchanguk/dorms-check scan --url "<배포 URL>"`을 다시 실행합니다.
+
+GitHub Pages를 계속 사용할 경우에는 Cloudflare 프록시나 별도 정적 호스팅 계층에서 보안 헤더와 HTTP to HTTPS 리다이렉트를 설정해야 합니다. 도름스 보안 점검은 실제 배포 URL의 응답 헤더를 검사하므로, GitHub Pages 원본 URL만으로는 보안 헤더 항목이 통과되지 않을 수 있습니다.
+
 ## QR URL 기준
 
 관리자 QR 출력 화면은 현재 접속한 사이트의 `window.location.origin`과 basePath를 조합해 QR URL을 만듭니다.

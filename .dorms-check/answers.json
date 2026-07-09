@@ -1,0 +1,46 @@
+{
+  "code.headers-config": {
+    "status": "pass",
+    "evidence": "정적 호스팅 전환용 _headers에 CSP, X-Frame-Options, nosniff, Referrer-Policy, Permissions-Policy, HSTS 설정 명시, web/public/_headers:1-15"
+  },
+  "code.dangerous-pattern": {
+    "status": "pass",
+    "evidence": "QR SVG를 문자열 HTML 삽입이 아니라 React SVG 데이터 렌더링으로 변경, web/src/app/admin/qr/page.tsx:247-267 및 web/src/app/admin/qr/page.tsx:421-430"
+  },
+  "edzip.1-1": {
+    "status": "pass",
+    "evidence": "방침 제2조에 교직원 교육 운영에 필요한 최소 항목과 학생 개인정보 미수집 명시, web/src/app/privacy/page.tsx:54-65; 실제 Apps Script 저장소는 교직원/교육/서명/이수증 시트로 한정, apps-script/Code.gs:9-23"
+  },
+  "edzip.1-2": {
+    "status": "pass",
+    "evidence": "방침 제3조에 교육 대상 확인, 전자서명 출석, 이수증 제출, 이수현황, 최종 서명부 생성 목적 명시, web/src/app/privacy/page.tsx:68-78"
+  },
+  "edzip.1-3": {
+    "status": "pass",
+    "evidence": "방침 제2조에 수집 항목, 제4조에 보유기간과 삭제 관리 기준 명시, web/src/app/privacy/page.tsx:54-65 및 web/src/app/privacy/page.tsx:80-92"
+  },
+  "edzip.2-1": {
+    "status": "pass",
+    "evidence": "방침 제9조에 Google 계정 권한, Apps Script 관리자 코드, HTTPS, 민감정보 GitHub Pages 저장 금지 명시, web/src/app/privacy/page.tsx:150-160; 보안 헤더는 전환 배포용 _headers에 명시, web/public/_headers:1-15"
+  },
+  "edzip.3-1": {
+    "status": "pass",
+    "evidence": "방침 제7조에 열람, 정정, 삭제, 처리정지 요청과 학교 담당부서/관리자 제출 절차 명시, web/src/app/privacy/page.tsx:126-136"
+  },
+  "edzip.4-1": {
+    "status": "pass",
+    "evidence": "사용자 확인 3문항 모두 학생 개인정보 미처리로 답변했고 edzipCase A 적용, dorms-check.config.json:8-10; 방침 제8조에 학생 개인정보와 학습 콘텐츠 미수집/미전송 명시, web/src/app/privacy/page.tsx:138-148"
+  },
+  "edzip.5-1": {
+    "status": "pass",
+    "evidence": "방침 제10조에 학교별 운영 담당자 지정, 00_학교설정 담당자 연락처 관리, 침해신고/분쟁조정 연락처 명시, web/src/app/privacy/page.tsx:162-172"
+  },
+  "edzip.5-2": {
+    "status": "pass",
+    "evidence": "방침 제5조에 개인정보를 제3자에게 제공하지 않는다고 명시, web/src/app/privacy/page.tsx:94-104"
+  },
+  "edzip.5-3": {
+    "status": "pass",
+    "evidence": "방침 제6조에 Google Workspace 위탁, 정적 호스팅 역할, Supabase/외부 AI API 미사용 명시, web/src/app/privacy/page.tsx:106-124; 앱 클라이언트는 Apps Script URL만 호출, web/src/lib/apps-script.ts:88-120"
+  }
+}
