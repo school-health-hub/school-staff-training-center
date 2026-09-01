@@ -217,7 +217,14 @@ export default function AdminTrainingsPage() {
       }
 
       setRuntimeConfig(configResult.config);
+      const title = new URLSearchParams(window.location.search).get("title")?.trim();
       await refreshTrainings(configResult.config);
+      if (title) {
+        setForm({ ...emptyForm, title });
+        setPanelOpen(true);
+        setMessage("필수연수 기준에서 교육명을 불러왔습니다. 나머지 정보를 확인해 등록해 주세요.");
+        setMessageTone("info");
+      }
     }
 
     void loadPage();

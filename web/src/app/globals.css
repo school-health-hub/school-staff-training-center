@@ -610,6 +610,86 @@ p {
   color: #92400e;
 }
 
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.filter-chip {
+  min-height: 40px;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 999px;
+  background: #ffffff;
+  color: #64748b;
+  cursor: pointer;
+  padding: 0 15px;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.filter-chip.active {
+  border-color: rgba(79, 70, 229, 0.25);
+  background: #eef2ff;
+  color: #4f46e5;
+}
+
+.required-summary-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.required-training-list {
+  gap: 18px;
+}
+
+.required-training-card {
+  gap: 16px;
+}
+
+.required-detail-grid {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+
+.required-detail-grid div {
+  display: grid;
+  gap: 4px;
+}
+
+.required-detail-grid dt {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.required-detail-grid dd {
+  margin: 0;
+  color: #0f172a;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.badge-blue {
+  background: #eef2ff;
+  color: #4f46e5;
+}
+
+.badge-violet {
+  background: #f5f3ff;
+  color: #7c3aed;
+}
+
+.check-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: #0f172a;
+  font-weight: 800;
+}
+
 .admin-qr-layout {
   display: grid;
   gap: 24px;
@@ -1753,6 +1833,10 @@ p {
 
   .status-summary-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .required-summary-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
   }
 
   .setup-check-grid {

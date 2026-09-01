@@ -17,6 +17,11 @@ export type SchoolConfig = {
   finalRosterFolderId?: string;
   privacyNotice?: string;
   activeSemester?: string;
+  schoolLevel?: string;
+  schoolType?: string;
+  region?: string;
+  schemaVersion?: string;
+  schemaUpdatedAt?: string;
 };
 
 export type SchoolConfigUpdate = Partial<SchoolConfig> & {
@@ -407,6 +412,72 @@ export type SetupValidationResult = {
     totalCount: number;
     activeCount: number;
   };
+};
+
+export type RequiredTrainingMatchStatus = "registered" | "missing" | "needs_review";
+
+export type RequiredTrainingItem = {
+  requiredTrainingId: string;
+  title: string;
+  category?: string;
+  sessions?: string;
+  requiredDuration?: string;
+  frequency?: string;
+  targetType?: string;
+  deliveryMethod?: string;
+  isBundled: boolean;
+  isSeparateRequired: boolean;
+  source?: string;
+  sourceDate?: string;
+  note?: string;
+  matchStatus: RequiredTrainingMatchStatus;
+  matchedTrainingId?: string;
+  matchedTrainingTitle?: string;
+};
+
+export type RequiredTrainingSummary = {
+  total: number;
+  registered: number;
+  missing: number;
+  bundled: number;
+  separateRequired: number;
+  needsReview: number;
+};
+
+export type RequiredTrainingSchoolConfig = {
+  year: string;
+  region: string;
+  schoolLevel: string;
+  schoolType: string;
+};
+
+export type RequiredTrainingsResult = {
+  schoolConfig: RequiredTrainingSchoolConfig;
+  requiredTrainings: RequiredTrainingItem[];
+  summary: RequiredTrainingSummary;
+  setupRequired?: boolean;
+  message?: string;
+};
+
+export type SchemaStatus = {
+  currentVersion: string;
+  latestVersion: string;
+  needsUpdate: boolean;
+};
+
+export type SchemaMigrationPreview = {
+  currentVersion: string;
+  targetVersion: string;
+  needsUpdate: boolean;
+  changes: string[];
+};
+
+export type SchemaMigrationResult = {
+  status: "updated";
+  fromVersion: string;
+  currentVersion: string;
+  targetVersion: string;
+  appliedChanges: string[];
 };
 
 export type AppsScriptEnvelope<T> = {

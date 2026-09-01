@@ -35,6 +35,16 @@ const adminItems = [
     href: "/admin/staff"
   },
   {
+    title: "필수연수 점검",
+    description: "우리 학교 필수연수 등록 현황을 확인합니다.",
+    href: "/admin/required-trainings"
+  },
+  {
+    title: "시스템 업데이트",
+    description: "학교용 허브시트 구조와 새로운 기능을 최신 버전으로 업데이트합니다.",
+    href: "/admin/system-update"
+  },
+  {
     title: "설정 관리",
     description: "학교 기본정보, 브랜드, 저장 폴더를 관리합니다.",
     href: "/admin/settings"

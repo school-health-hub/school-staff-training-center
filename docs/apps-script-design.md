@@ -42,6 +42,10 @@ saveCertificateSubmission()
 getTrainingAttendanceStatus()
 getFinalAttendancePreview()
 generateFinalAttendanceSheet()
+getRequiredTrainings()
+getSchemaStatus()
+previewSchemaMigration()
+runSchemaMigration()
 ```
 
 `saveQrAttendance()`와 `checkDuplicateAttendance()`는 호환을 위해 남아 있을 수 있으나 주요 운영 흐름에서는 사용하지 않습니다.
@@ -74,3 +78,39 @@ generateFinalAttendanceSheet()
 ## 이수증 제출
 
 `saveCertificateSubmission()`은 이수증 파일을 지정 Drive 폴더에 저장하고 `06_이수증업로드`에 제출 기록을 남깁니다.
+
+## 필수연수 안내
+
+`getRequiredTrainings()`는 `00_학교설정`, `01_교육목록`, `12_필수연수기준`을 읽어 학교 전체 기준의 필수연수 등록 현황을 반환합니다. 개인별 대상자나 개인별 미이수 여부는 v1.1.0 범위에 포함하지 않습니다.
+
+필터 기준:
+
+- 적용연도: 학교 설정의 운영 연도를 우선 사용합니다.
+- 지역: 학교 설정과 같거나 기준표 값이 `전체`이면 포함합니다.
+- 학교급: `고등학교`는 `고등학교`, `중등`, `초·중등`, `전체` 기준과 호환됩니다.
+- 설립유형: 학교 설정과 같거나 기준표 값이 `전체`이면 포함합니다.
+- 사용여부: `미사용`은 제외합니다.
+
+교육목록 대조는 필수연수 기준의 `연수명`과 `01_교육목록`의 `교육명`을 비교합니다. 정확히 정규화 일치하면 `registered`, 보수적으로 유사하지만 확정하기 어려우면 `needs_review`, 매칭이 없으면 `missing`으로 반환합니다.
+
+## schemaVersion과 migration
+
+최신 스키마 버전은 `1.1.0`입니다. `00_학교설정`에 `schemaVersion`이 없으면 `1.0.0`으로 간주합니다.
+
+관리자 시스템 업데이트 action:
+
+```text
+getSchemaStatus()
+previewSchemaMigration()
+runSchemaMigration()
+```
+
+`runSchemaMigration()`은 버전별 migration 함수를 순차 실행합니다. v1.1.0에서는 없는 설정 key와 없는 헤더, 없는 `12_필수연수기준` 시트만 추가합니다.
+
+additive migration 원칙:
+
+- 기존 시트, 행, 값은 삭제하거나 덮어쓰지 않습니다.
+- 일부 설정 key가 이미 있으면 기존 값을 보존합니다.
+- `12_필수연수기준`에 사용자 데이터가 있으면 기본 데이터를 삽입하지 않습니다.
+- 현재 저장소에는 검증된 21개 필수연수 기준 행 원본이 포함되어 있지 않으므로 migration은 기본적으로 시트와 헤더만 준비합니다.
+- 모든 단계가 성공한 뒤에만 `schemaVersion`과 `schemaUpdatedAt`을 갱신합니다.

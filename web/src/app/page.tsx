@@ -21,6 +21,7 @@ type IconName =
   | "file"
   | "shield"
   | "pin"
+  | "required"
   | "chevron"
   | "check";
 
@@ -131,6 +132,15 @@ const iconPaths: Record<IconName, ReactNode> = {
       <circle cx="12" cy="10" r="2.8" />
     </>
   ),
+  required: (
+    <>
+      <path d="M8 4h8" />
+      <path d="M9 2h6v4H9z" />
+      <path d="M6 4.5H5a2 2 0 0 0-2 2V20a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6.5a2 2 0 0 0-2-2h-1" />
+      <path d="m8 13 2.2 2.2L16 9.5" />
+      <path d="M8 19h8" />
+    </>
+  ),
   chevron: <path d="m9 18 6-6-6-6" />,
   check: <path d="M20 6 9 17l-5-5" />
 };
@@ -140,6 +150,7 @@ const navItems = [
   { title: "교육목록", href: "/trainings", icon: "list" as IconName },
   { title: "교육 전자서명", href: "/signature", icon: "signature" as IconName },
   { title: "내 이수현황", href: "/my-status", icon: "status" as IconName },
+  { title: "필수연수 안내", href: "/required-trainings", icon: "required" as IconName },
   { title: "이수증 제출", href: "/certificate", icon: "upload" as IconName }
 ];
 
@@ -159,6 +170,14 @@ const featureCards = [
     href: "/signature",
     icon: "signature" as IconName,
     tone: "pink"
+  },
+  {
+    title: "필수연수 안내",
+    description: "우리 학교에 해당하는 법정·의무연수를 확인합니다.",
+    action: "확인하기",
+    href: "/required-trainings",
+    icon: "required" as IconName,
+    tone: "blue"
   },
   {
     title: "이수증 제출",

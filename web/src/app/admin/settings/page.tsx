@@ -25,6 +25,11 @@ type SettingsForm = {
   privacyNotice: string;
   adminCode: string;
   activeSemester: string;
+  schoolLevel: string;
+  schoolType: string;
+  region: string;
+  schemaVersion: string;
+  schemaUpdatedAt: string;
 };
 
 const emptyForm: SettingsForm = {
@@ -41,7 +46,12 @@ const emptyForm: SettingsForm = {
   finalRosterFolderId: "",
   privacyNotice: "",
   adminCode: "",
-  activeSemester: ""
+  activeSemester: "",
+  schoolLevel: "",
+  schoolType: "",
+  region: "",
+  schemaVersion: "",
+  schemaUpdatedAt: ""
 };
 
 function formFromSchoolConfig(config: SchoolConfig): SettingsForm {
@@ -59,7 +69,12 @@ function formFromSchoolConfig(config: SchoolConfig): SettingsForm {
     finalRosterFolderId: config.finalRosterFolderId ?? "",
     privacyNotice: config.privacyNotice ?? "",
     adminCode: "",
-    activeSemester: config.activeSemester ?? ""
+    activeSemester: config.activeSemester ?? "",
+    schoolLevel: config.schoolLevel ?? "",
+    schoolType: config.schoolType ?? "",
+    region: config.region ?? "",
+    schemaVersion: config.schemaVersion ?? "",
+    schemaUpdatedAt: config.schemaUpdatedAt ?? ""
   };
 }
 
@@ -77,7 +92,10 @@ function payloadFromForm(form: SettingsForm): SchoolConfigUpdate {
     certificateFolderId: form.certificateFolderId,
     finalRosterFolderId: form.finalRosterFolderId,
     privacyNotice: form.privacyNotice,
-    activeSemester: form.activeSemester
+    activeSemester: form.activeSemester,
+    schoolLevel: form.schoolLevel,
+    schoolType: form.schoolType,
+    region: form.region
   };
 
   if (form.adminCode.trim()) {
@@ -241,6 +259,31 @@ export default function AdminSettingsPage() {
               <Field label="학교명" name="schoolName" onChange={handleChange} value={form.schoolName} />
               <Field label="교육센터명" name="centerName" onChange={handleChange} value={form.centerName} />
               <Field label="운영학기" name="activeSemester" onChange={handleChange} placeholder="2026학년도 1학기" value={form.activeSemester} />
+              <Field label="지역" name="region" onChange={handleChange} placeholder="서울" value={form.region} />
+              <Field label="설립유형" name="schoolType" onChange={handleChange} placeholder="사립" value={form.schoolType} />
+              <Field label="학교급" name="schoolLevel" onChange={handleChange} placeholder="고등학교" value={form.schoolLevel} />
+            </div>
+          </section>
+
+          <section className="training-section" aria-label="시스템 버전">
+            <div className="section-head">
+              <div>
+                <h2>시스템 버전</h2>
+                <p>필수연수 기준과 허브시트 구조 업데이트 상태입니다.</p>
+              </div>
+              <a className="ghost-button" href={`${APP_BASE_PATH}/admin/system-update/`}>
+                시스템 업데이트
+              </a>
+            </div>
+            <div className="settings-grid">
+              <label className="field-group">
+                <span>schemaVersion</span>
+                <input readOnly value={form.schemaVersion || "1.0.0"} />
+              </label>
+              <label className="field-group">
+                <span>schemaUpdatedAt</span>
+                <input readOnly value={form.schemaUpdatedAt || "업데이트 기록 없음"} />
+              </label>
             </div>
           </section>
 

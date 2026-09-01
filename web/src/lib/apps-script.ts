@@ -10,10 +10,14 @@ import type {
   FinalAttendanceGenerateResult,
   FinalAttendancePreviewResult,
   MyTrainingStatusResult,
+  RequiredTrainingsResult,
   SaveAttendanceResult,
   SaveSignatureResult,
   SchoolConfig,
   SchoolConfigUpdate,
+  SchemaMigrationPreview,
+  SchemaMigrationResult,
+  SchemaStatus,
   SetupValidationResult,
   SignatureExistsResult,
   SignatureRequiredTrainingsResult,
@@ -67,6 +71,10 @@ export type AppsScriptAction =
   | "getTrainingAttendanceStatus"
   | "getFinalAttendancePreview"
   | "generateFinalAttendanceSheet"
+  | "getRequiredTrainings"
+  | "getSchemaStatus"
+  | "previewSchemaMigration"
+  | "runSchemaMigration"
   | "getNotices"
   | "getDepartments"
   | "getCodeValues"
@@ -751,4 +759,48 @@ function normalizeTraining(training: Partial<Training>): Training {
     finalRosterFileUrl: training.finalRosterFileUrl ?? "",
     note: training.note ?? ""
   };
+}
+
+export async function getRequiredTrainings(config: AppConfig): Promise<{ data?: RequiredTrainingsResult; error?: string }> {
+  try {
+    const data = await requestAppsScript<RequiredTrainingsResult>(config, "getRequiredTrainings");
+    return { data };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "필수연수 기준을 불러오지 못했습니다."
+    };
+  }
+}
+
+export async function getSchemaStatus(config: AppConfig): Promise<{ data?: SchemaStatus; error?: string }> {
+  try {
+    const data = await requestAppsScript<SchemaStatus>(config, "getSchemaStatus");
+    return { data };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "시스템 버전을 확인하지 못했습니다."
+    };
+  }
+}
+
+export async function previewSchemaMigration(config: AppConfig): Promise<{ data?: SchemaMigrationPreview; error?: string }> {
+  try {
+    const data = await requestAppsScript<SchemaMigrationPreview>(config, "previewSchemaMigration");
+    return { data };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "업데이트 내용을 확인하지 못했습니다."
+    };
+  }
+}
+
+export async function runSchemaMigration(config: AppConfig): Promise<{ data?: SchemaMigrationResult; error?: string }> {
+  try {
+    const data = await requestAppsScript<SchemaMigrationResult>(config, "runSchemaMigration");
+    return { data };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "시스템 업데이트를 완료하지 못했습니다."
+    };
+  }
 }

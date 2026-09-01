@@ -14,6 +14,8 @@
 - 내 이수현황 계산
 - 관리자 서명/이수 현황 계산
 - 최종 서명부 생성
+- 필수연수 기준 안내
+- 허브시트 schemaVersion 확인 및 additive migration
 
 ## 운영 기준
 
@@ -56,6 +58,10 @@ saveCertificateSubmission()
 getTrainingAttendanceStatus()
 getFinalAttendancePreview()
 generateFinalAttendanceSheet()
+getRequiredTrainings()
+getSchemaStatus()
+previewSchemaMigration()
+runSchemaMigration()
 ```
 
 `saveQrAttendance()`와 `checkDuplicateAttendance()`는 과거 호환 또는 보조 로그 용도로 남아 있을 수 있습니다. 현재 GitHub Pages UI의 현장 QR 출석 흐름은 `saveBulkSignature()`를 사용해 `05_전자서명기록`에 저장합니다.
@@ -67,6 +73,35 @@ generateFinalAttendanceSheet()
 3. `Code.gs` 내용을 붙여 넣습니다.
 4. Web App으로 배포합니다.
 5. Web App URL을 `web/public/app-config.json`의 `appsScriptUrl`에 입력합니다.
+
+## v1.1.0 시스템 업데이트
+
+최신 스키마 버전은 `1.1.0`입니다. 기존 학교 시트에 `schemaVersion`이 없으면 `1.0.0`으로 간주합니다.
+
+관리자 화면의 `/admin/system-update`는 다음 action을 순서대로 사용합니다.
+
+```text
+getSchemaStatus()
+previewSchemaMigration()
+runSchemaMigration()
+```
+
+업데이트는 additive 방식입니다.
+
+- 없는 설정 key만 추가합니다.
+- 없는 `12_필수연수기준` 시트만 생성합니다.
+- 없는 헤더만 추가합니다.
+- 기존 교육목록, 교직원명단, 전자서명, 이수증 데이터는 변경하지 않습니다.
+- 현재 저장소에는 검증된 필수연수 기준 21개 행 원본이 포함되어 있지 않으므로 기본 데이터는 자동으로 임의 삽입하지 않습니다.
+
+## 필수연수 기준
+
+`getRequiredTrainings()`는 `12_필수연수기준`과 `01_교육목록`을 대조해 학교 전체 기준의 등록 현황을 반환합니다.
+
+- `schoolLevel`, `schoolType`, `region` 설정이 비어 있으면 설정 필요 상태로 반환합니다.
+- 학교급은 `고등학교`가 `중등`, `초·중등`, `전체` 기준과 호환되도록 보수적으로 매칭합니다.
+- 교육명은 정규화 exact match를 먼저 적용하고, 확신이 낮은 유사 항목은 `needs_review`로 둡니다.
+- 개인별 필수연수 대상 판정은 v1.1.0 범위에 포함하지 않습니다.
 
 ## 개인정보 원칙
 

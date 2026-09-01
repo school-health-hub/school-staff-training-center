@@ -19,8 +19,12 @@ const SHEETS = {
   NOTICES: "09_공지사항",
   DEPARTMENTS: "10_부서관리",
   TARGET_MEMO: "11_교육대상_설계메모",
+  REQUIRED_TRAININGS: "12_필수연수기준",
   CODE_VALUES: "99_코드값"
 };
+
+const CURRENT_SCHEMA_VERSION = "1.1.0";
+const LEGACY_SCHEMA_VERSION = "1.0.0";
 
 const CONFIG = {
   KEY: "설정키",
@@ -38,7 +42,12 @@ const CONFIG = {
   FINAL_ROSTER_FOLDER_ID: "finalRosterFolderId",
   PRIVACY_NOTICE: "privacyNotice",
   ADMIN_CODE: "adminCode",
-  ACTIVE_SEMESTER: "activeSemester"
+  ACTIVE_SEMESTER: "activeSemester",
+  SCHOOL_LEVEL: "schoolLevel",
+  SCHOOL_TYPE: "schoolType",
+  REGION: "region",
+  SCHEMA_VERSION: "schemaVersion",
+  SCHEMA_UPDATED_AT: "schemaUpdatedAt"
 };
 
 const TRAINING = {
@@ -153,6 +162,50 @@ const FINAL = {
   NOTE: "비고"
 };
 
+const REQUIRED_TRAINING = {
+  YEAR: "적용연도",
+  REGION: "지역",
+  SCHOOL_LEVEL: "학교급",
+  SCHOOL_TYPE: "설립유형",
+  CATEGORY: "과정구분",
+  SEQUENCE: "연번",
+  TITLE: "연수명",
+  SESSIONS: "차시",
+  DURATION: "기준시간",
+  FREQUENCY: "주기",
+  TARGET_TYPE: "대상구분",
+  DELIVERY_METHOD: "이수방법",
+  BUNDLED: "교육청묶음과정",
+  SEPARATE_REQUIRED: "별도이수필요",
+  SOURCE: "출처",
+  SOURCE_DATE: "출처기준일",
+  NOTE: "근거/비고",
+  ENABLED: "사용여부"
+};
+
+const REQUIRED_TRAINING_HEADERS = [
+  REQUIRED_TRAINING.YEAR,
+  REQUIRED_TRAINING.REGION,
+  REQUIRED_TRAINING.SCHOOL_LEVEL,
+  REQUIRED_TRAINING.SCHOOL_TYPE,
+  REQUIRED_TRAINING.CATEGORY,
+  REQUIRED_TRAINING.SEQUENCE,
+  REQUIRED_TRAINING.TITLE,
+  REQUIRED_TRAINING.SESSIONS,
+  REQUIRED_TRAINING.DURATION,
+  REQUIRED_TRAINING.FREQUENCY,
+  REQUIRED_TRAINING.TARGET_TYPE,
+  REQUIRED_TRAINING.DELIVERY_METHOD,
+  REQUIRED_TRAINING.BUNDLED,
+  REQUIRED_TRAINING.SEPARATE_REQUIRED,
+  REQUIRED_TRAINING.SOURCE,
+  REQUIRED_TRAINING.SOURCE_DATE,
+  REQUIRED_TRAINING.NOTE,
+  REQUIRED_TRAINING.ENABLED
+];
+
+const REQUIRED_TRAINING_BASELINES_2026_SEOUL_PRIVATE = [];
+
 const ACTIONS = {
   getSchoolConfig: getSchoolConfig,
   verifyAdminCode: verifyAdminCode,
@@ -186,6 +239,10 @@ const ACTIONS = {
   getTrainingAttendanceStatus: getTrainingAttendanceStatus,
   getFinalAttendancePreview: getFinalAttendancePreview,
   generateFinalAttendanceSheet: generateFinalAttendanceSheet,
+  getRequiredTrainings: getRequiredTrainings,
+  getSchemaStatus: getSchemaStatus,
+  previewSchemaMigration: previewSchemaMigration,
+  runSchemaMigration: runSchemaMigration,
   getNotices: getNotices,
   getDepartments: getDepartments,
   getCodeValues: getCodeValues,
@@ -260,6 +317,9 @@ function updateSchoolConfig(payload) {
     finalRosterFolderId: CONFIG.FINAL_ROSTER_FOLDER_ID,
     privacyNotice: CONFIG.PRIVACY_NOTICE,
     activeSemester: CONFIG.ACTIVE_SEMESTER,
+    schoolLevel: CONFIG.SCHOOL_LEVEL,
+    schoolType: CONFIG.SCHOOL_TYPE,
+    region: CONFIG.REGION,
     adminCode: CONFIG.ADMIN_CODE
   };
   var rows = Object.keys(keyMap).filter(function (key) {
@@ -286,6 +346,7 @@ function validateSetup() {
     [SHEETS.TARGETS, "교육대상"],
     [SHEETS.ATTENDANCE, "QR출석기록"],
     [SHEETS.SIGNATURES, "전자서명기록"],
+    [SHEETS.REQUIRED_TRAININGS, "필수연수기준"],
     [SHEETS.FINAL_ROSTER, "최종서명부"]
   ].map(function (item) {
     return { key: item[0], label: item[1], name: item[0], exists: Boolean(spreadsheet.getSheetByName(item[0])) };
@@ -305,6 +366,87 @@ function validateSetup() {
     folders: folderChecks,
     sheets: sheetChecks,
     training: { totalCount: trainings.length, activeCount: activeCount }
+  });
+}
+
+function getSchemaStatus() {
+  var currentVersion = getCurrentSchemaVersion_();
+  return successResponse({
+    currentVersion: currentVersion,
+    latestVersion: CURRENT_SCHEMA_VERSION,
+    needsUpdate: compareVersions_(currentVersion, CURRENT_SCHEMA_VERSION) < 0
+  });
+}
+
+function previewSchemaMigration() {
+  var currentVersion = getCurrentSchemaVersion_();
+  var changes = getSchemaMigrationChanges_();
+  return successResponse({
+    currentVersion: currentVersion,
+    targetVersion: CURRENT_SCHEMA_VERSION,
+    needsUpdate: compareVersions_(currentVersion, CURRENT_SCHEMA_VERSION) < 0 || changes.length > 0,
+    changes: changes
+  });
+}
+
+function runSchemaMigration() {
+  var fromVersion = getCurrentSchemaVersion_();
+  var applied = [];
+  try {
+    if (compareVersions_(fromVersion, CURRENT_SCHEMA_VERSION) < 0) {
+      migrateTo_1_1_0_(applied);
+    } else {
+      ensureSchema_1_1_0_(applied);
+    }
+    if (compareVersions_(fromVersion, CURRENT_SCHEMA_VERSION) < 0) applied.push("schemaVersion 1.1.0 갱신");
+    upsertConfigRows_([
+      { key: CONFIG.SCHEMA_VERSION, value: CURRENT_SCHEMA_VERSION },
+      { key: CONFIG.SCHEMA_UPDATED_AT, value: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss") }
+    ]);
+    return successResponse({
+      status: "updated",
+      fromVersion: fromVersion,
+      currentVersion: CURRENT_SCHEMA_VERSION,
+      targetVersion: CURRENT_SCHEMA_VERSION,
+      appliedChanges: applied
+    });
+  } catch (error) {
+    return errorResponse("업데이트를 완료하지 못했습니다. " + (error && error.message ? error.message : ""), "SCHEMA_MIGRATION_FAILED");
+  }
+}
+
+function getRequiredTrainings(payload) {
+  var config = getConfigMap_();
+  var schoolConfig = publicSchoolConfig_(config);
+  var year = text_(payload.year) || getActiveYear_(schoolConfig);
+  var criteria = {
+    year: year,
+    region: schoolConfig.region,
+    schoolLevel: schoolConfig.schoolLevel,
+    schoolType: schoolConfig.schoolType
+  };
+  if (!criteria.year || !criteria.region || !criteria.schoolLevel || !criteria.schoolType) {
+    return successResponse({
+      schoolConfig: criteria,
+      requiredTrainings: [],
+      summary: emptyRequiredTrainingSummary_(),
+      setupRequired: true,
+      message: "필수연수 기준을 확인하려면 학교 설정을 먼저 완료해주세요."
+    });
+  }
+  var requiredRows = readTableOptional_(SHEETS.REQUIRED_TRAININGS).filter(function (row) {
+    return requiredTrainingMatches_(row, criteria);
+  });
+  var trainings = readTableOptional_(SHEETS.TRAININGS).filter(isActiveTraining_).map(normalizeTraining_);
+  var items = requiredRows.map(function (row) {
+    return buildRequiredTrainingItem_(row, trainings);
+  });
+  return successResponse({
+    schoolConfig: criteria,
+    requiredTrainings: items,
+    summary: requiredTrainingSummary_(items),
+    setupRequired: false,
+    message: items.length ? "" : "현재 학교에 맞는 필수연수 기준 데이터가 등록되어 있지 않습니다."
   });
 }
 
@@ -1342,6 +1484,15 @@ function aliases_() {
   aliases[FINAL.CERTIFICATE_STATUS] = ["이수증제출여부", "이수증 제출 여부", "certificateStatus"];
   aliases[FINAL.DEPARTMENT] = ["소속부서", "부서", "department"];
   aliases[FINAL.POSITION] = ["직책", "직위", "position"];
+  aliases[REQUIRED_TRAINING.YEAR] = ["연도", "적용 연도", "year"];
+  aliases[REQUIRED_TRAINING.SCHOOL_LEVEL] = ["학교급", "학교 급", "schoolLevel"];
+  aliases[REQUIRED_TRAINING.SCHOOL_TYPE] = ["설립유형", "설립 유형", "schoolType"];
+  aliases[REQUIRED_TRAINING.TITLE] = ["연수명", "교육명", "title"];
+  aliases[REQUIRED_TRAINING.SESSIONS] = ["차시", "sessions"];
+  aliases[REQUIRED_TRAINING.DURATION] = ["기준시간", "시간", "requiredDuration"];
+  aliases[REQUIRED_TRAINING.BUNDLED] = ["교육청묶음과정", "묶음과정", "bundled"];
+  aliases[REQUIRED_TRAINING.SEPARATE_REQUIRED] = ["별도이수필요", "별도 이수 필요", "separateRequired"];
+  aliases[REQUIRED_TRAINING.ENABLED] = ["사용여부", "활성상태", "enabled"];
   return aliases;
 }
 
@@ -1380,6 +1531,7 @@ function requiredHeaders_(sheetName) {
   if (sheetName === SHEETS.SIGNATURES) return [SIGNATURE.ID, SIGNATURE.TRAINING_ID, SIGNATURE.STAFF_ID];
   if (sheetName === SHEETS.CERTIFICATES) return [CERTIFICATE.TRAINING_ID, CERTIFICATE.STAFF_ID];
   if (sheetName === SHEETS.FINAL_ROSTER) return [FINAL.SEQUENCE, FINAL.TRAINING_ID, FINAL.STAFF_NAME];
+  if (sheetName === SHEETS.REQUIRED_TRAININGS) return REQUIRED_TRAINING_HEADERS;
   return [];
 }
 
@@ -1430,8 +1582,292 @@ function publicSchoolConfig_(config) {
     certificateFolderId: text_(configValue_(config, ["certificateFolderId", "이수증 저장 폴더 ID", "이수증저장폴더ID"])),
     finalRosterFolderId: text_(configValue_(config, ["finalRosterFolderId", "최종 서명부 저장 폴더 ID", "최종서명부저장폴더ID"])),
     activeSemester: text_(configValue_(config, ["activeSemester", "운영학기", "학기"])),
+    schoolLevel: text_(configValue_(config, ["schoolLevel", "학교급"])),
+    schoolType: text_(configValue_(config, ["schoolType", "설립유형"])),
+    region: text_(configValue_(config, ["region", "지역"])),
+    schemaVersion: text_(configValue_(config, ["schemaVersion", "스키마버전"])) || LEGACY_SCHEMA_VERSION,
+    schemaUpdatedAt: text_(configValue_(config, ["schemaUpdatedAt", "스키마수정일시"])),
     privacyNotice: text_(configValue_(config, ["privacyNotice", "개인정보 안내문", "개인정보안내문"]))
   };
+}
+
+function getCurrentSchemaVersion_() {
+  var config = getConfigMap_();
+  return text_(configValue_(config, [CONFIG.SCHEMA_VERSION, "스키마버전"])) || LEGACY_SCHEMA_VERSION;
+}
+
+function compareVersions_(left, right) {
+  var a = parseVersion_(left);
+  var b = parseVersion_(right);
+  for (var i = 0; i < 3; i += 1) {
+    if (a[i] > b[i]) return 1;
+    if (a[i] < b[i]) return -1;
+  }
+  return 0;
+}
+
+function parseVersion_(version) {
+  var parts = text_(version).split(".");
+  return [0, 1, 2].map(function (index) {
+    var parsed = Number(parts[index] || 0);
+    return isNaN(parsed) ? 0 : parsed;
+  });
+}
+
+function getSchemaMigrationChanges_() {
+  var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  var config = getConfigMap_();
+  var currentVersion = text_(configValue_(config, [CONFIG.SCHEMA_VERSION, "스키마버전"])) || LEGACY_SCHEMA_VERSION;
+  var changes = [];
+  if (compareVersions_(currentVersion, CURRENT_SCHEMA_VERSION) < 0) changes.push("schemaVersion 1.1.0 갱신");
+  [
+    [CONFIG.SCHOOL_LEVEL, "학교급 설정 추가"],
+    [CONFIG.SCHOOL_TYPE, "설립유형 설정 추가"],
+    [CONFIG.REGION, "지역 설정 추가"],
+    [CONFIG.SCHEMA_VERSION, "schemaVersion 설정 추가"],
+    [CONFIG.SCHEMA_UPDATED_AT, "schemaUpdatedAt 설정 추가"]
+  ].forEach(function (item) {
+    if (config[item[0]] === undefined) changes.push(item[1]);
+  });
+  var sheet = spreadsheet.getSheetByName(SHEETS.REQUIRED_TRAININGS);
+  if (!sheet) {
+    changes.push("필수연수 기준표 추가");
+    return changes;
+  }
+  var headerState = getHeaderState_(sheet, REQUIRED_TRAINING_HEADERS);
+  if (headerState.missing.length) changes.push("필수연수 기준표 헤더 보강");
+  if (!hasDataRows_(sheet)) changes.push("필수연수 기준 데이터 확인 필요");
+  return changes;
+}
+
+function migrateTo_1_1_0_(applied) {
+  ensureSchema_1_1_0_(applied);
+}
+
+function ensureSchema_1_1_0_(applied) {
+  ensureConfigKeys_([
+    CONFIG.SCHOOL_LEVEL,
+    CONFIG.SCHOOL_TYPE,
+    CONFIG.REGION,
+    CONFIG.SCHEMA_VERSION,
+    CONFIG.SCHEMA_UPDATED_AT
+  ], applied);
+  ensureSheetWithHeaders_(SHEETS.REQUIRED_TRAININGS, REQUIRED_TRAINING_HEADERS, applied);
+  maybeInsertRequiredTrainingBaseline_(applied);
+}
+
+function ensureConfigKeys_(keys, applied) {
+  var config = getConfigMap_();
+  var rows = [];
+  keys.forEach(function (key) {
+    if (config[key] === undefined) {
+      rows.push({ key: key, value: "" });
+      applied.push(key + " 설정 추가");
+    }
+  });
+  if (rows.length) upsertConfigRows_(rows);
+}
+
+function ensureSheetWithHeaders_(sheetName, headers, applied) {
+  var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = spreadsheet.getSheetByName(sheetName);
+  if (!sheet) {
+    sheet = spreadsheet.insertSheet(sheetName);
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    applied.push(sheetName + " 시트 생성");
+    return;
+  }
+  var headerState = getHeaderState_(sheet, headers);
+  if (!headerState.headers.length) {
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    applied.push(sheetName + " 헤더 생성");
+    return;
+  }
+  var nextColumn = headerState.headers.length + 1;
+  headerState.missing.forEach(function (header) {
+    sheet.getRange(headerState.index + 1, nextColumn).setValue(header);
+    nextColumn += 1;
+  });
+  if (headerState.missing.length) applied.push(sheetName + " 헤더 보강");
+}
+
+function getHeaderState_(sheet, headers) {
+  var values = sheet.getDataRange().getValues();
+  for (var rowIndex = 0; rowIndex < values.length; rowIndex += 1) {
+    var currentHeaders = values[rowIndex].map(function (cell) { return text_(cell); });
+    var hasAny = currentHeaders.some(function (header) { return header; });
+    if (!hasAny) continue;
+    var missing = headers.filter(function (header) {
+      return !currentHeaders.some(function (currentHeader) { return sameHeader_(currentHeader, header); });
+    });
+    return { index: rowIndex, headers: currentHeaders, missing: missing };
+  }
+  return { index: 0, headers: [], missing: headers.slice() };
+}
+
+function hasDataRows_(sheet) {
+  var values = sheet.getDataRange().getValues();
+  for (var rowIndex = 1; rowIndex < values.length; rowIndex += 1) {
+    if (values[rowIndex].some(function (cell) { return cell !== ""; })) return true;
+  }
+  return false;
+}
+
+function maybeInsertRequiredTrainingBaseline_(applied) {
+  var config = publicSchoolConfig_(getConfigMap_());
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEETS.REQUIRED_TRAININGS);
+  if (!sheet || hasDataRows_(sheet) || !canUseSeoulPrivateBaseline_(config) || !REQUIRED_TRAINING_BASELINES_2026_SEOUL_PRIVATE.length) return;
+  REQUIRED_TRAINING_BASELINES_2026_SEOUL_PRIVATE.forEach(function (row) {
+    appendRowByHeader(SHEETS.REQUIRED_TRAININGS, row);
+  });
+  applied.push("2026 서울 사립 필수연수 기준 데이터 추가");
+}
+
+function canUseSeoulPrivateBaseline_(config) {
+  return matchesRegion_("서울", config.region) &&
+    matchesSimpleScope_("사립", config.schoolType) &&
+    matchesSchoolLevel_("초·중등", config.schoolLevel);
+}
+
+function getActiveYear_(schoolConfig) {
+  var activeSemester = text_(schoolConfig.activeSemester);
+  var match = activeSemester.match(/20\d{2}/);
+  if (match) return match[0];
+  return String(new Date().getFullYear());
+}
+
+function requiredTrainingMatches_(row, criteria) {
+  return text_(row[REQUIRED_TRAINING.YEAR]) === text_(criteria.year) &&
+    matchesRegion_(row[REQUIRED_TRAINING.REGION], criteria.region) &&
+    matchesSchoolLevel_(row[REQUIRED_TRAINING.SCHOOL_LEVEL], criteria.schoolLevel) &&
+    matchesSimpleScope_(row[REQUIRED_TRAINING.SCHOOL_TYPE], criteria.schoolType) &&
+    text_(row[REQUIRED_TRAINING.ENABLED]) !== "미사용";
+}
+
+function matchesRegion_(ruleRegion, schoolRegion) {
+  return matchesSimpleScope_(ruleRegion, schoolRegion);
+}
+
+function matchesSimpleScope_(ruleValue, schoolValue) {
+  var rule = text_(ruleValue);
+  var school = text_(schoolValue);
+  return rule === "전체" || rule === school;
+}
+
+function matchesSchoolLevel_(ruleLevel, schoolLevel) {
+  var rule = normalizeSchoolLevel_(ruleLevel);
+  var school = normalizeSchoolLevel_(schoolLevel);
+  if (!rule || !school) return false;
+  if (rule === "전체" || rule === school) return true;
+  if (rule === "초·중등") return ["초등학교", "중학교", "고등학교"].indexOf(school) !== -1;
+  if (rule === "중등") return ["중학교", "고등학교"].indexOf(school) !== -1;
+  return false;
+}
+
+function normalizeSchoolLevel_(value) {
+  var normalized = text_(value).replace(/\s+/g, "");
+  if (normalized === "초중등" || normalized === "초·중등" || normalized === "초/중등") return "초·중등";
+  if (normalized === "유치원") return "유치원";
+  if (normalized === "초등" || normalized === "초등학교") return "초등학교";
+  if (normalized === "중등") return "중등";
+  if (normalized === "중" || normalized === "중학교") return "중학교";
+  if (normalized === "고" || normalized === "고등" || normalized === "고등학교") return "고등학교";
+  if (normalized === "특수" || normalized === "특수학교") return "특수학교";
+  if (normalized === "각종" || normalized === "각종학교") return "각종학교";
+  if (normalized === "전체") return "전체";
+  return normalized;
+}
+
+function buildRequiredTrainingItem_(row, trainings) {
+  var title = text_(row[REQUIRED_TRAINING.TITLE]);
+  var match = matchTraining_(title, trainings);
+  return {
+    requiredTrainingId: requiredTrainingId_(row),
+    title: title,
+    category: text_(row[REQUIRED_TRAINING.CATEGORY]),
+    sessions: text_(row[REQUIRED_TRAINING.SESSIONS]),
+    requiredDuration: text_(row[REQUIRED_TRAINING.DURATION]),
+    frequency: text_(row[REQUIRED_TRAINING.FREQUENCY]),
+    targetType: text_(row[REQUIRED_TRAINING.TARGET_TYPE]),
+    deliveryMethod: text_(row[REQUIRED_TRAINING.DELIVERY_METHOD]),
+    isBundled: normalizeBoolean(row[REQUIRED_TRAINING.BUNDLED]),
+    isSeparateRequired: normalizeBoolean(row[REQUIRED_TRAINING.SEPARATE_REQUIRED]),
+    source: text_(row[REQUIRED_TRAINING.SOURCE]),
+    sourceDate: normalizeDate_(row[REQUIRED_TRAINING.SOURCE_DATE]),
+    note: text_(row[REQUIRED_TRAINING.NOTE]),
+    matchStatus: match.status,
+    matchedTrainingId: match.training ? match.training.trainingId : "",
+    matchedTrainingTitle: match.training ? match.training.title : ""
+  };
+}
+
+function requiredTrainingId_(row) {
+  return [
+    text_(row[REQUIRED_TRAINING.YEAR]),
+    text_(row[REQUIRED_TRAINING.REGION]),
+    text_(row[REQUIRED_TRAINING.SCHOOL_LEVEL]),
+    text_(row[REQUIRED_TRAINING.SCHOOL_TYPE]),
+    text_(row[REQUIRED_TRAINING.SEQUENCE]),
+    normalizeTrainingName_(row[REQUIRED_TRAINING.TITLE])
+  ].filter(Boolean).join("-");
+}
+
+function matchTraining_(title, trainings) {
+  var normalizedTitle = normalizeTrainingName_(title);
+  var exact = trainings.filter(function (training) {
+    return normalizeTrainingName_(training.title) === normalizedTitle;
+  })[0];
+  if (exact) return { status: "registered", training: exact };
+  var review = trainings.filter(function (training) {
+    return isConservativeSimilar_(normalizedTitle, normalizeTrainingName_(training.title));
+  })[0];
+  if (review) return { status: "needs_review", training: review };
+  return { status: "missing", training: null };
+}
+
+function normalizeTrainingName_(value) {
+  return text_(value)
+    .toLowerCase()
+    .replace(/[()[\]{}「」『』]/g, "")
+    .replace(/[·ㆍ,./:;_\-–—]/g, "")
+    .replace(/\s+/g, "");
+}
+
+function isConservativeSimilar_(left, right) {
+  if (!left || !right || left.length < 6 || right.length < 6) return false;
+  if (left.indexOf(right) !== -1 || right.indexOf(left) !== -1) return true;
+  var leftBigrams = bigramSet_(left);
+  var rightBigrams = bigramSet_(right);
+  if (!leftBigrams.length || !rightBigrams.length) return false;
+  var shared = leftBigrams.filter(function (token) { return rightBigrams.indexOf(token) !== -1; }).length;
+  var smaller = Math.min(leftBigrams.length, rightBigrams.length);
+  var larger = Math.max(leftBigrams.length, rightBigrams.length);
+  return shared / smaller >= 0.72 && shared / larger >= 0.5;
+}
+
+function bigramSet_(value) {
+  var compact = text_(value);
+  if (compact.length < 2) return [];
+  var tokens = [];
+  for (var i = 0; i < compact.length - 1; i += 1) {
+    tokens.push(compact.slice(i, i + 2));
+  }
+  return tokens.filter(function (token, index) { return tokens.indexOf(token) === index; });
+}
+
+function requiredTrainingSummary_(items) {
+  return {
+    total: items.length,
+    registered: items.filter(function (item) { return item.matchStatus === "registered"; }).length,
+    missing: items.filter(function (item) { return item.matchStatus === "missing"; }).length,
+    bundled: items.filter(function (item) { return item.isBundled; }).length,
+    separateRequired: items.filter(function (item) { return item.isSeparateRequired; }).length,
+    needsReview: items.filter(function (item) { return item.matchStatus === "needs_review"; }).length
+  };
+}
+
+function emptyRequiredTrainingSummary_() {
+  return { total: 0, registered: 0, missing: 0, bundled: 0, separateRequired: 0, needsReview: 0 };
 }
 
 function normalizeTraining_(row) {
