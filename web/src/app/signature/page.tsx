@@ -17,9 +17,10 @@ import type {
   Staff,
   Training
 } from "@/lib/types";
+import { getBasePath } from "@/lib/paths";
 import { useEffect, useMemo, useRef, useState, type FormEvent, type PointerEvent } from "react";
 
-const APP_BASE_PATH = "/school-staff-training-center";
+const APP_BASE_PATH = getBasePath();
 
 type SignatureStep = "setup" | "lookup" | "ready" | "saving" | "complete";
 type SignatureFilter = "today" | "needed" | "all";

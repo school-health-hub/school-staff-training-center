@@ -16,6 +16,8 @@ Apps Script는 학교별 Google Sheet에 붙어서 동작하는 API입니다. Gi
 
 ```text
 getSchoolConfig()
+updateSchoolConfig()
+validateSetup()
 getTrainingList()
 getTrainingDetail()
 createTraining()

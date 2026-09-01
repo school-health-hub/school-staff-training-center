@@ -7,9 +7,10 @@ import {
   type CertificateSubmissionPayload
 } from "@/lib/apps-script";
 import type { AppConfig, CertificateRequiredTraining, CertificateRequiredTrainingsResult, CertificateSubmissionResult } from "@/lib/types";
+import { getBasePath } from "@/lib/paths";
 import { useMemo, useState, type ChangeEvent, type FormEvent } from "react";
 
-const APP_BASE_PATH = "/school-staff-training-center";
+const APP_BASE_PATH = getBasePath();
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
 const ALLOWED_FILE_TYPES = ["application/pdf", "image/jpeg", "image/png"];
 

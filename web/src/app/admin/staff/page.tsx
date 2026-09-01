@@ -3,9 +3,10 @@
 import { AdminAuthGate, AdminLogoutButton } from "@/components/admin-auth-gate";
 import { createStaff, deactivateStaff, getStaffList, loadAppConfig, updateStaff } from "@/lib/apps-script";
 import type { AdminStaff, AppConfig, StaffListResult } from "@/lib/types";
+import { getBasePath } from "@/lib/paths";
 import { useCallback, useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from "react";
 
-const APP_BASE_PATH = "/school-staff-training-center";
+const APP_BASE_PATH = getBasePath();
 
 type StaffFilter = "all" | "active" | "inactive" | "admin" | "owner" | "staff";
 type StaffForm = {

@@ -3,9 +3,10 @@
 import { AdminAuthGate, AdminLogoutButton } from "@/components/admin-auth-gate";
 import { getSchoolConfig, loadAppConfig, updateSchoolConfig } from "@/lib/apps-script";
 import type { AppConfig, SchoolConfig, SchoolConfigUpdate } from "@/lib/types";
+import { getBasePath } from "@/lib/paths";
 import { useEffect, useMemo, useState, type ChangeEvent, type CSSProperties, type FormEvent } from "react";
 
-const APP_BASE_PATH = "/school-staff-training-center";
+const APP_BASE_PATH = getBasePath();
 const APPS_SCRIPT_URL_MISSING_MESSAGE =
   "Apps Script URL이 설정되지 않았습니다. app-config.json에 학교별 Apps Script URL을 입력해야 실제 데이터 연동이 가능합니다.";
 

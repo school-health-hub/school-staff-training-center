@@ -521,6 +521,8 @@ function checkTrainingTarget(payload) {
   });
 }
 
+// Legacy/support API. The current QR flow uses checkSignatureExists() +
+// saveBulkSignature(), and 05_전자서명기록 is the canonical completion source.
 function checkDuplicateAttendance(payload) {
   var trainingId = requireText_(payload.trainingId, "교육ID가 필요합니다.", "MISSING_TRAINING_ID");
   var staffId = requireText_(payload.staffId, "교직원ID가 필요합니다.", "MISSING_STAFF_ID");
@@ -533,6 +535,8 @@ function checkDuplicateAttendance(payload) {
   });
 }
 
+// Legacy/support API for 04_QR출석기록. Keep for older clients or auxiliary logs;
+// do not use this sheet as the completion source for training status.
 function saveQrAttendance(payload) {
   var trainingId = requireText_(payload.trainingId, "교육ID가 필요합니다.", "MISSING_TRAINING_ID");
   var staffId = requireText_(payload.staffId, "교직원ID가 필요합니다.", "MISSING_STAFF_ID");

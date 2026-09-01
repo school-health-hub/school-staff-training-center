@@ -3,9 +3,10 @@
 import { AdminAuthGate, AdminLogoutButton } from "@/components/admin-auth-gate";
 import { getTrainingAttendanceStatus, getTrainingList, loadAppConfig } from "@/lib/apps-script";
 import type { AdminAttendanceStatusGroup, AdminAttendanceStatusItem, AdminAttendanceStatusResult, AppConfig, Training } from "@/lib/types";
+import { getBasePath } from "@/lib/paths";
 import { useEffect, useMemo, useState } from "react";
 
-const APP_BASE_PATH = "/school-staff-training-center";
+const APP_BASE_PATH = getBasePath();
 
 type StatusFilter = "all" | AdminAttendanceStatusGroup;
 

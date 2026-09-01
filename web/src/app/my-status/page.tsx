@@ -2,9 +2,10 @@
 
 import { getMyTrainingStatusByNameDept, loadAppConfig } from "@/lib/apps-script";
 import type { AppConfig, MyTrainingStatusItem, MyTrainingStatusResult } from "@/lib/types";
+import { getBasePath } from "@/lib/paths";
 import { useMemo, useState, type FormEvent } from "react";
 
-const APP_BASE_PATH = "/school-staff-training-center";
+const APP_BASE_PATH = getBasePath();
 
 type PageStep = "ready" | "checking" | "loaded";
 

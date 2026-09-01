@@ -488,6 +488,8 @@ export async function updateTrainingTargets(
   }
 }
 
+// Legacy/support adapter for 04_QR출석기록. Current QR completion uses
+// checkSignatureExists() and saveBulkSignature() against 05_전자서명기록.
 export async function checkDuplicateAttendance(
   config: AppConfig,
   trainingId: string,

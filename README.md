@@ -10,10 +10,14 @@ QR 출석부터 전자서명, 이수증 제출, 이수현황 조회까지 하나
 
 - 교육목록 관리
 - 현장 QR 기반 전자서명 출석
-- 교육 전자서명
+- 여러 교육 일괄 전자서명
 - 외부 연수 이수증 제출
 - 개인 이수현황 조회
-- 관리자 교육 운영 및 최종 서명부 생성
+- 관리자 인증과 교육 운영
+- 교육별 QR 출력
+- 서명/이수 현황 확인
+- 최종 서명부 미리보기와 생성
+- 학교 설정, 교직원 명단, 교육대상 관리
 - Google Sheets + Google Drive 기반 운영
 - 개인정보는 학교 Google Workspace에서 관리
 
@@ -133,6 +137,12 @@ Windows PowerShell에서는 다음과 같이 실행합니다.
 cd web
 $env:NEXT_PUBLIC_BASE_PATH="/YOUR_REPOSITORY_NAME"
 npm run build
+```
+
+canonical URL과 Open Graph URL은 `NEXT_PUBLIC_SITE_URL`로 관리합니다. 환경변수가 없으면 공식 데모 URL을 fallback으로 사용합니다.
+
+```bash
+NEXT_PUBLIC_SITE_URL=https://OWNER.github.io/YOUR_REPOSITORY_NAME/
 ```
 
 ## 개발 명령
